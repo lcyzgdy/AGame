@@ -5,8 +5,9 @@ using UnityEngine;
 public class CameraMove : MonoBehaviour
 {
 	private Rigidbody rigidBody;
-	[SerializeField]
-	private GameObject targetObject;
+	[SerializeField] private GameObject targetObject;
+	[SerializeField] private bool myDebug;
+
 	// Use this for initialization
 	void Start()
 	{
@@ -18,10 +19,37 @@ public class CameraMove : MonoBehaviour
 
 	void Update()
 	{
-		var newVelocity = targetObject.transform.position - transform.position;
-		newVelocity.z = 0;
-		newVelocity.y += GetComponent<Camera>().orthographicSize / 3f;
-		rigidBody.velocity = newVelocity * 2;
-		//print(rigidBody.velocity);
+		if (myDebug)
+		{
+			Move();
+		}
+		else
+		{
+			var newVelocity = targetObject.transform.position - transform.position;
+			newVelocity.z = 0;
+			newVelocity.y += GetComponent<Camera>().orthographicSize / 3f;
+			rigidBody.velocity = newVelocity * 2;
+		}
+	}
+
+	private void Move()
+	{
+		print(1);
+		if (Input.GetKey(KeyCode.RightArrow))
+		{
+			transform.position = new Vector3(transform.position.x + 0.1f, transform.position.y, transform.position.z);
+		}
+		if (Input.GetKey(KeyCode.UpArrow))
+		{
+			transform.position = new Vector3(transform.position.x, transform.position.y + 0.1f, transform.position.z);
+		}
+		if (Input.GetKey(KeyCode.LeftArrow))
+		{
+			transform.position = new Vector3(transform.position.x - 0.1f, transform.position.y, transform.position.z);
+		}
+		if (Input.GetKey(KeyCode.DownArrow))
+		{
+			transform.position = new Vector3(transform.position.x, transform.position.y - 0.1f, transform.position.z);
+		}
 	}
 }
