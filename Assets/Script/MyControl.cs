@@ -17,7 +17,6 @@ public class MyControl : MonoBehaviour
 	private Vector3 beforePosition;
 	private CapsuleCollider2D capsule;
 	private BoxCollider2D box;
-	private bool climb;
 
 	// Use this for initialization
 	void Start()
@@ -37,15 +36,19 @@ public class MyControl : MonoBehaviour
 		anim.SetBool("Ground", grounded);
 		anim.SetFloat("vSpeed", rigidbody.velocity.y);
 		anim.SetFloat("Speed", Mathf.Abs(rigidbody.velocity.x));
-		
-		Debug.ClearDeveloperConsole();
 
 		var footPosition1 = box.transform.TransformPoint(box.offset + new Vector2(box.size.x, -box.size.y) * 0.5f);
 		var footPosition2 = box.transform.TransformPoint(box.offset + new Vector2(-box.size.x, -box.size.y) * 0.5f);
-		var ray1 = Physics2D.Raycast(footPosition1, Vector2.down, 0.12f, whatIsGround);
-		var ray2 = Physics2D.Raycast(footPosition2, Vector2.down, 0.12f, whatIsGround);
-		if (ray1.collider != null || ray2.collider!=null)
+		var ray1 = Physics2D.Raycast(footPosition1, Vector2.down, 0.1f, whatIsGround);
+		var ray2 = Physics2D.Raycast(footPosition2, Vector2.down, 0.1f, whatIsGround);
+		if (ray1.collider != null || ray2.collider != null)
 		{
+			if (ray1.collider != null && ray2.collider != null)
+			{
+				var d = ray1.distance - ray2.distance;
+				var x = box.size.x;
+				if (Mathf.Abs(d) > 0.078f) normalVector = new Vector2(d, x);
+			}
 			grounded = true;
 		}
 		else
@@ -53,9 +56,11 @@ public class MyControl : MonoBehaviour
 			grounded = false;
 			normalVector = Vector2.up;
 		}
-
-		Debug.DrawLine(footPosition1, new Vector3(footPosition1.x, footPosition1.y - 0.12f, 0f), Color.red);
-		Debug.DrawLine(footPosition2, new Vector3(footPosition2.x, footPosition2.y - 0.12f, 0f), Color.red);
+		//Debug.DrawLine(footPosition1, new Vector3(footPosition1.x, footPosition1.y - 0.12f, 0f), Color.red);
+		//Debug.DrawLine(footPosition2, new Vector3(footPosition2.x, footPosition2.y - 0.12f, 0f), Color.red);
+		Debug.DrawLine(footPosition1, ray1.point, Color.red);
+		Debug.DrawLine(footPosition2, ray2.point, Color.red);
+		Debug.DrawRay(transform.position, normalVector, Color.magenta);
 
 		if (Mathf.Abs(rigidbody.velocity.x) >= 1e-2)
 		{
@@ -72,6 +77,7 @@ public class MyControl : MonoBehaviour
 		{
 			transform.rotation = Quaternion.Euler(0f, 0f, isStand * (normalVector.x > 0 ? -1 : 1));
 		}
+		//print(climbed);
 
 		Move();
 	}
@@ -93,7 +99,7 @@ public class MyControl : MonoBehaviour
 		{
 			if (grounded)
 			{
-				Invoke("CannotJump", 0.8f);
+				Invoke("CannotJump", 0.4f);
 				canJumpFlag = true;
 			}
 		}
@@ -103,6 +109,7 @@ public class MyControl : MonoBehaviour
 			{
 				rigidbody.velocity = new Vector2(rigidbody.velocity.x, maxSpeed * 1.25f);
 				grounded = false;
+				//canJumpFlag = false;
 			}
 		}
 		if (Input.GetKeyUp(KeyCode.LeftShift) || Input.GetKeyUp(KeyCode.Space))
@@ -125,7 +132,6 @@ public class MyControl : MonoBehaviour
 		bool flag = true;
 		foreach (var item in collision.contacts)
 		{
-			Debug.DrawRay(transform.position, item.normal, Color.blue);
 			if (flag)
 			{
 				flag = false;
@@ -138,13 +144,12 @@ public class MyControl : MonoBehaviour
 					normalVector = item.normal;
 				}
 			}
-			
+
 			if (item.normal.y <= -0.45f)
 			{
 				canJumpFlag = false;
 			}
 		}
-		//if (Vector2.Angle(Vector2.up, normalVector) > 55f) normalVector = Vector2.up;
 	}
 
 	private void OnCollisionStay2D(Collision2D collision)
@@ -152,7 +157,6 @@ public class MyControl : MonoBehaviour
 		bool flag = true;
 		foreach (var item in collision.contacts)
 		{
-			Debug.DrawRay(transform.position, item.normal, Color.blue);
 			if (flag)
 			{
 				flag = false;

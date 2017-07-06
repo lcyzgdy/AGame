@@ -328,3 +328,9 @@ sysinfo.txt
 *.apk
 
 *.unitypackage
+
+# Others
+*.dll
+*.a
+*.lib
+*.exp

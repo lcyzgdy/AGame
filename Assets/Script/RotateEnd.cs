@@ -21,7 +21,7 @@ public class RotateEnd : MonoBehaviour
 			before = transform.rotation.eulerAngles;
 			return;
 		}
-		if ((transform.rotation.eulerAngles - before).z >= 90f)
+		if (Mathf.Abs((transform.rotation.eulerAngles - before).z) >= 90f)
 		{
 			rigidBody.angularVelocity = new Vector3(0f, 0f, 0f);
 			var newRotation = transform.rotation.eulerAngles;
