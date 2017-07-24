@@ -7,7 +7,7 @@ public class InputControl : MonoBehaviour
 {
 	[SerializeField] private LayerMask chessMan;
 	private bool seleteControl;
-	private GameObject seleteObject;
+	private ChessManControl seletedObject;
 
 	void Start()
 	{
@@ -15,6 +15,7 @@ public class InputControl : MonoBehaviour
 		vuforia.RegisterVuforiaStartedCallback(OnVuforiaStarted);
 		vuforia.RegisterOnPauseCallback(OnPaused);
 		seleteControl = false;
+		seletedObject = null;
 	}
 
 	// Update is called once per frame
@@ -54,18 +55,34 @@ public class InputControl : MonoBehaviour
 		RaycastHit hitInfo;
 		if (Physics.Raycast(ray, out hitInfo, chessMan))
 		{
-			//Destroy(hitInfo.collider.gameObject);
-			var seletedObject = hitInfo.collider.gameObject.GetComponent<ChessManControl>();
-			if (!seleteControl)
+			var seletedObj = hitInfo.collider.gameObject.GetComponent<ChessManControl>();
+			if (seletedObject == null)
 			{
-				seletedObject.OnSelete();
-				seleteControl = true;
+				print(1);
+				seletedObj.OnSelete();
+				seletedObject = seletedObj;
 			}
 			else
 			{
-				seletedObject.OnMove();
-				seleteControl = false;
+				if (seletedObject == seletedObj)
+				{
+					print(2);
+					seletedObject.OnUnselete();
+					seletedObject = null;
+				}
+				else
+				{
+					print(3);
+					seletedObject.OnUnselete();
+					seletedObject = seletedObj;
+					seletedObj.OnSelete();
+				}
 			}
+		}
+		else
+		{
+			seletedObject.OnMove();
+			seletedObject = null;
 		}
 	}
 }

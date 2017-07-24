@@ -43,6 +43,15 @@ public class ChessManControl: MonoBehaviour
 		}
 	}
 
+	public virtual void OnUnselete()
+	{
+		if (IsInvoking("Sparking"))
+		{
+			sparkControl.enabled = true;
+			CancelInvoke("Sparking");
+		}
+	}
+
 	private void Sparking()
 	{
 		sparkControl.enabled = (!sparkControl.enabled);
