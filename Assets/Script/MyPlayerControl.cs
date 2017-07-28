@@ -4,13 +4,19 @@ using UnityEngine;
 
 public class MyPlayerControl : MonoBehaviour
 {
-	new Rigidbody2D rigidbody;
-	Animator anim;
+	[SerializeField] private float maxSpeed;
+	[SerializeField] private float maxVSpeed;
+	[SerializeField] LayerMask whatIsGround;
+	private new Rigidbody2D rigidbody;
+	private Animator anim;
+	private BoxCollider2D box;
+
 	// Use this for initialization
 	void Start()
 	{
 		rigidbody = GetComponent<Rigidbody2D>();
 		anim = GetComponent<Animator>();
+		box = GetComponent<BoxCollider2D>();
 	}
 
 	// Update is called once per frame
@@ -19,15 +25,42 @@ public class MyPlayerControl : MonoBehaviour
 		float speed = 0;
 		if (Input.GetKey(KeyCode.A))
 		{
-			speed = -1.2f;
-			
+			speed = -maxSpeed;
+			transform.localScale = new Vector3(-0.1f, transform.localScale.y, transform.localScale.z);
 		}
 		else if (Input.GetKey(KeyCode.D))
 		{
-			speed = 1.2f;
+			speed = maxSpeed;
+			transform.localScale = new Vector3(0.1f, transform.localScale.y, transform.localScale.z);
+		}
+		bool grounded = IsOnGround();
+		if (Input.GetKeyDown(KeyCode.Space) && grounded)
+		{
+			rigidbody.velocity = new Vector2(rigidbody.velocity.x, maxVSpeed);
 		}
 
 		rigidbody.velocity = new Vector2(speed, rigidbody.velocity.y);
-		anim.SetFloat("Speed", rigidbody.velocity.x);
+		anim.SetFloat("Speed", Mathf.Abs(rigidbody.velocity.x));
+		anim.SetFloat("vSpeed", rigidbody.velocity.y);
+		anim.SetBool("Grounded", grounded);
+	}
+
+	private bool IsOnGround()
+	{
+		var footPosition1 = box.transform.TransformPoint(box.offset + new Vector2(box.size.x, -box.size.y) * 0.5f);
+		var footPosition2 = box.transform.TransformPoint(box.offset + new Vector2(-box.size.x, -box.size.y) * 0.5f);
+		var ray1 = Physics2D.Raycast(footPosition1, Vector2.down, 0.1f, whatIsGround);
+		var ray2 = Physics2D.Raycast(footPosition2, Vector2.down, 0.1f, whatIsGround);
+		Debug.DrawLine(footPosition1, ray1.point, Color.red);
+		Debug.DrawLine(footPosition2, ray2.point, Color.red);
+
+		if (ray1.collider != null || ray2.collider != null)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 }
