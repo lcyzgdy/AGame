@@ -47,10 +47,10 @@ public class MyPlayerControl : MonoBehaviour
 
 	private bool IsOnGround()
 	{
-		var footPosition1 = box.transform.TransformPoint(box.offset + new Vector2(box.size.x, -box.size.y) * 0.5f);
-		var footPosition2 = box.transform.TransformPoint(box.offset + new Vector2(-box.size.x, -box.size.y) * 0.5f);
-		var ray1 = Physics2D.Raycast(footPosition1, Vector2.down, 0.1f, whatIsGround);
-		var ray2 = Physics2D.Raycast(footPosition2, Vector2.down, 0.1f, whatIsGround);
+		var footPosition1 = box.transform.TransformPoint(box.offset + new Vector2(box.size.x, -box.size.y) * 0.5f + Vector2.up);
+		var footPosition2 = box.transform.TransformPoint(box.offset + new Vector2(-box.size.x, -box.size.y) * 0.5f + Vector2.up);
+		var ray1 = Physics2D.Raycast(footPosition1, Vector2.down, 0.2f, whatIsGround);
+		var ray2 = Physics2D.Raycast(footPosition2, Vector2.down, 0.2f, whatIsGround);
 		Debug.DrawLine(footPosition1, ray1.point, Color.red);
 		Debug.DrawLine(footPosition2, ray2.point, Color.red);
 
