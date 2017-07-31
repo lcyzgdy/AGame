@@ -22,7 +22,14 @@ public class MyPlayerControl : MonoBehaviour
 	// Update is called once per frame
 	void Update()
 	{
-		float speed = 0;
+		bool grounded = IsOnGround();
+		if (Input.GetKeyDown(KeyCode.Space) && grounded)
+		{
+			rigidbody.velocity = new Vector2(rigidbody.velocity.x, maxVSpeed);
+		}
+
+		//float speed = 0;
+		float speed = rigidbody.velocity.x;
 		if (Input.GetKey(KeyCode.A))
 		{
 			speed = -maxSpeed;
@@ -33,10 +40,13 @@ public class MyPlayerControl : MonoBehaviour
 			speed = maxSpeed;
 			transform.localScale = new Vector3(0.1f, transform.localScale.y, transform.localScale.z);
 		}
-		bool grounded = IsOnGround();
-		if (Input.GetKeyDown(KeyCode.Space) && grounded)
+		else
 		{
-			rigidbody.velocity = new Vector2(rigidbody.velocity.x, maxVSpeed);
+			if (!grounded)
+			{
+				speed = Mathf.Lerp(speed, 0f, 0.04f);
+			}
+			else speed = 0;
 		}
 
 		rigidbody.velocity = new Vector2(speed, rigidbody.velocity.y);
