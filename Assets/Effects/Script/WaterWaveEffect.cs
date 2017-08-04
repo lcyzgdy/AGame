@@ -33,7 +33,7 @@ public class WaterWaveEffect : PostEffectBase
 			Graphics.Blit(source, destination);
 		}
 	}
-
+	/*
 	private void Update()
 	{
 		if (Input.GetMouseButtonDown(0))
@@ -44,5 +44,14 @@ public class WaterWaveEffect : PostEffectBase
 			waveStartTime = Time.time;
 			//print(111);
 		}
+	}
+	*/
+	private void OnEnable()
+	{
+		Vector2 mousePos = Input.mousePosition;
+		//将mousePos转化为（0，1）区间
+		startPos = new Vector4(mousePos.x / Screen.width, mousePos.y / Screen.height, 0, 0);
+		waveStartTime = Time.time;
+		totalTime = 3f;
 	}
 }

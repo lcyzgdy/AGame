@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -29,6 +30,21 @@ public class ColorAdjustEffect : PostEffectBase
 		{
 			//直接绘制  
 			Graphics.Blit(src, dest);
+		}
+	}
+
+	private void OnEnable()
+	{
+		totalTime = 3f;
+		StartCoroutine(StartEffect());
+	}
+
+	private IEnumerator StartEffect()
+	{
+		while (brightness > 0)
+		{
+			brightness -= Time.deltaTime / totalTime;
+			yield return null;
 		}
 	}
 }

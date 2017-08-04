@@ -8,6 +8,7 @@ public class PostEffectBase : MonoBehaviour
 {
 	public Shader shader = null;
 	private Material myMaterial = null;
+	protected float totalTime;
 
 	public Material MyMaterial
 	{
@@ -19,6 +20,14 @@ public class PostEffectBase : MonoBehaviour
 			}
 
 			return myMaterial;
+		}
+	}
+
+	public float TotalTime
+	{
+		get
+		{
+			return totalTime;
 		}
 	}
 

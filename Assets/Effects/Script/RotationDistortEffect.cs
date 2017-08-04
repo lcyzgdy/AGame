@@ -62,7 +62,7 @@ public class RotationDistortEffect : PostEffectBase
 
 	//ContexMenu，可以直接在Component上右键调用该函数，比较好用的小技巧哈
 	[ContextMenu("Play")]
-	public void StartPassThoughEffect()
+	public void StartEffect()
 	{
 		currentTime = 0.0f;
 		StartCoroutine(UpdatePassthoughEffect());
