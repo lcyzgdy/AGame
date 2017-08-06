@@ -4,18 +4,17 @@ using UnityEngine;
 
 public class CameraMove : MonoBehaviour
 {
-	private Rigidbody rigidBody;
 	[SerializeField] private GameObject targetObject;
 	[SerializeField] private bool myDebug;
+	private Vector3 targetPosition;
+	private float currentX;
+	private float currentY;
+	private float currentZ;
 
-	// Use this for initialization
-	void Start()
-	{
-		rigidBody = GetComponent<Rigidbody>();
-		//targetObject = GameObject.Find("CharacterRobotBoy");
-	}
-
-	// Update is called once per frame
+	private float xVelocity = 0.0F;
+	private float yVelocity = 0.0F;
+	private float zVelocity = 0.0f;
+	private float distanceSnapTime = 0.4f;
 
 	void Update()
 	{
@@ -25,10 +24,13 @@ public class CameraMove : MonoBehaviour
 		}
 		else
 		{
-			var newVelocity = targetObject.transform.position - transform.position;
-			newVelocity.z = 0;
-			newVelocity.y += GetComponent<Camera>().orthographicSize / 3f;
-			rigidBody.velocity = newVelocity * 2;
+			Vector3 targetPos = targetObject.transform.position;
+			targetPosition.x = targetPos.x;
+			targetPosition.y = targetPos.y + Camera.main.orthographicSize / 3f;// + heightAbovePlayer;
+			currentX = Mathf.SmoothDamp(currentX, targetPosition.x, ref xVelocity, distanceSnapTime);
+			currentY = Mathf.SmoothDamp(currentY, targetPosition.y, ref yVelocity, distanceSnapTime);
+			//currentZ = Mathf.SmoothDamp(currentZ, targetPosition.z, ref zVelocity, 0.5f);
+			transform.position = new Vector3(currentX, currentY, -10);
 		}
 	}
 

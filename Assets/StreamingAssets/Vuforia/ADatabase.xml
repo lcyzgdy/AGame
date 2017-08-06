@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <QCARConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="qcar_config.xsd">
   <Tracking>
+    <ImageTarget name="Cheese" size="1.000000 1.166667" />
+    <ImageTarget name="Road" size="1.000000 1.000000" />
     <ImageTarget name="Marxism" size="0.230000 0.129375" />
     <ImageTarget name="EmptyPaper" size="0.298000 0.167625" />
+    <CylinderTarget name="GlassCup" sideLength="0.180000"/>
   </Tracking>
 </QCARConfig>
