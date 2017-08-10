@@ -12,6 +12,7 @@ public class MyPlayerControl : MonoBehaviour
 	private BoxCollider2D box;
 	private bool grounded;
 	private Vector2 normalVector;
+	private AudioSource[] audioSource;
 
 	// Use this for initialization
 	void Start()
@@ -19,6 +20,7 @@ public class MyPlayerControl : MonoBehaviour
 		rigidbody = GetComponent<Rigidbody2D>();
 		anim = GetComponent<Animator>();
 		box = GetComponent<BoxCollider2D>();
+		audioSource = GetComponents<AudioSource>();
 	}
 
 	// Update is called once per frame
@@ -29,6 +31,7 @@ public class MyPlayerControl : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.Space) && grounded)
 		{
 			rigidbody.velocity = new Vector2(rigidbody.velocity.x, maxVSpeed);
+			audioSource[1].Play();
 		}
 
 		//float speed = 0;
@@ -50,6 +53,15 @@ public class MyPlayerControl : MonoBehaviour
 				speed = Mathf.Lerp(speed, 0f, 0.04f);
 			}
 			else speed = 0;
+		}
+
+		if (speed == 0 || !grounded)
+		{
+			if (audioSource[0].isPlaying) audioSource[0].Stop();
+		}
+		else
+		{
+			if (!audioSource[0].isPlaying && grounded) audioSource[0].Play();
 		}
 
 		rigidbody.velocity = new Vector2(speed, rigidbody.velocity.y);
