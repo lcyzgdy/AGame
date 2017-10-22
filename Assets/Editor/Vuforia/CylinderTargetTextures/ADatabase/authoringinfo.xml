@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<VuforiaUnityInfo version="7.0">
-    <TargetSet version="5.0" toolVersion="2.7.4">
-        <CylinderTarget name="GlassCup" version="3.0" targetId="72a36e7ba8f842be9fb98933d093ea95" sideLength="0.180000" topDiameter="0.070000" bottomDiameter="0.070000" sideImage="GlassCup.Body_scaled.jpg" topImage="GlassCup.Top_scaled.jpg" bottomImage="GlassCup.Bottom_scaled.jpg"/>
-    </TargetSet>
-</VuforiaUnityInfo>

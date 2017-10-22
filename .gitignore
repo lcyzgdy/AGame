@@ -334,3 +334,5 @@ sysinfo.txt
 *.a
 *.lib
 *.exp
+*.asset
+Lightmap-*.png
