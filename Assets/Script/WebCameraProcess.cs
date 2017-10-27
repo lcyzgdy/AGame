@@ -18,10 +18,8 @@ public class WebCameraProcess : MonoBehaviour
 	private Material[] materials;
 	[SerializeField] private Shader[] shader;
 
-	//[Range(0.0f, 1.0f)]
-	//[SerializeField]
-	//private float grayThreshold = 0.5f;
-	//[SerializeField] private Texture2D skinTexture;
+	[SerializeField] private ComputeShader[] compute;
+
 	private Matrix4x4 kernel;
 
 	private void Start()
@@ -61,28 +59,37 @@ public class WebCameraProcess : MonoBehaviour
 		//materials[0].SetTexture("_SkinTex", skinTexture);
 		var rt1 = RenderTexture.GetTemporary(256, 256, 0);
 		var rt2 = RenderTexture.GetTemporary(256, 256, 0);
+		var rt3 = new RenderTexture(256, 256, 0, RenderTextureFormat.ARGB32);
 		var temp = RenderTexture.GetTemporary(256, 256, 0);
 		Graphics.Blit(webCameraTexture, nativeCameraTexture);
 		Graphics.Blit(webCameraTexture, temp, materials[0]);
 
-		//print(kernel);
-		//materials[1].SetMatrix("_Kernel", kernel);
+		rt3.enableRandomWrite = true;
+		rt3.Create();
+		int kernelHandle = compute[0].FindKernel("CSMain");
+		compute[0].SetTexture(kernelHandle, "Image", temp);
+		compute[0].SetTexture(kernelHandle, "Result", rt3);
+		compute[0].Dispatch(kernelHandle, 256 / 8, 256 / 8, 1);
+		//compute[0].Get
+
+		//materials[2].SetMatrix("_Kernel", kernel);
+		//materials[3].SetMatrix("_Kernel", kernel);
+		// Graphics.Blit(temp, rt2, materials[3]);
+		// Graphics.Blit(rt2, rt1, materials[2]);
+		// Graphics.Blit(rt1, rt2, materials[2]);
+		// Graphics.Blit(rt2, rt1, materials[3]);
+		// Graphics.Blit(rt1, rt2, materials[3]);
+		// Graphics.Blit(rt2, rt1, materials[2]);
+		// Graphics.Blit(rt1, rt2, materials[2]);
+		// Graphics.Blit(rt1, rt2, materials[3]);
+		// //Graphics.Blit(rt1, renderTexture)
+
 		//Graphics.Blit(rt1, renderTexture, materials[1]);
-		//Graphics.Blit(webCameraTexture, renderTexture);
-
-		materials[2].SetMatrix("_Kernel", kernel);
-		Graphics.Blit(temp, rt2, materials[2]);
-		materials[3].SetMatrix("_Kernel", kernel);
-		Graphics.Blit(rt2, rt1, materials[2]);
-		Graphics.Blit(rt1, rt2, materials[3]);
-		Graphics.Blit(rt2, rt1, materials[2]);
-		Graphics.Blit(rt1, rt2, materials[3]);
-		Graphics.Blit(rt2, rt1, materials[3]);
-
-		Graphics.Blit(rt1, renderTexture);
+		Graphics.Blit(rt3, renderTexture);
 
 		rt1.Release();
 		rt2.Release();
+		rt3.Release();
 		temp.Release();
 	}
 

@@ -1,0 +1,37 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+//StructuredBuffer<float4> Edge;
+Texture2D<float4> Image;
+
+inline float Erode(float2 xy)
+{
+	float4 sum = Result[xy + float2(-1, -1)] + Result[xy + float2(-1, 0)] + Result[xy + float2(-1, 1)]
+			   + Result[xy + float2(0, -1)] + Result[xy + float2(0, 0)] + Result[xy + float2(0, 1)]
+			   + Result[xy + float2(1, -1)] + Result[xy + float2(1, 0)] + Result[xy + float2(1, 1)];
+	float bin = step(9, sum.x);
+	return bin;
+}
+
+inline float Dilation(float2 xy)
+{
+	float4 sum = Result[xy + float2(-1, -1)] + Result[xy + float2(-1, 0)] + Result[xy + float2(-1, 1)]
+			   + Result[xy + float2(0, -1)] + Result[xy + float2(0, 0)] + Result[xy + float2(0, 1)]
+			   + Result[xy + float2(1, -1)] + Result[xy + float2(1, 0)] + Result[xy + float2(1, 1)];
+	float bin = step(1, sum.x);
+	return bin;
+}
+
+[numthreads(8, 8, 1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	Result[id.xy] = Image[id.xy];
+	float bin = Erode(id.xy);
+	//float4 sum = Image[id.xy] + float4(0.1, 0.1, 0.1, 0.1);
+	Result[id.xy] = float4(bin, bin, bin, 1);
+	
+	bin = Dilation(id.xy);
+}
