@@ -1,37 +1,89 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+#pragma kernel Erode
+#pragma kernel Dilation
+#pragma kernel Tex2Buffer
+#pragma kernel Buffer2Tex
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> Result;
-//StructuredBuffer<float4> Edge;
 Texture2D<float4> Image;
 
-inline float Erode(float2 xy)
+RWStructuredBuffer<float4> TexBuffer;
+
+inline int F(int2 xy)
 {
-	float4 sum = Result[xy + float2(-1, -1)] + Result[xy + float2(-1, 0)] + Result[xy + float2(-1, 1)]
-			   + Result[xy + float2(0, -1)] + Result[xy + float2(0, 0)] + Result[xy + float2(0, 1)]
-			   + Result[xy + float2(1, -1)] + Result[xy + float2(1, 0)] + Result[xy + float2(1, 1)];
+	return int(xy.x * 256 + xy.y);
+}
+
+[numthreads(32, 32, 1)]
+void Erode(uint3 id : SV_DispatchThreadID)
+{
+	int2 xy = id.xy;
+	//float4 sum = Image[xy + float2(-1, -1)] + Image[xy + float2(-1, 0)] + Image[xy + float2(-1, 1)]
+	//		   + Image[xy + float2(0, -1)] + Image[xy + float2(0, 0)] + Image[xy + float2(0, 1)]
+	//		   + Image[xy + float2(1, -1)] + Image[xy + float2(1, 0)] + Image[xy + float2(1, 1)];
+	//float bin = step(9, sum.x);
+	//Result[id.xy] = float4(bin, bin, bin, 1);
+	float4 sum = TexBuffer[F(xy + int2(-1, -1))] + TexBuffer[F(xy + int2(-1, 0))] + TexBuffer[F(xy + int2(-1, 1))]
+			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
+			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
 	float bin = step(9, sum.x);
-	return bin;
+	TexBuffer[F(xy)] = float4(bin, bin, bin, 1);
 }
 
-inline float Dilation(float2 xy)
+[numthreads(32, 32, 1)]
+void Dilation(uint3 id : SV_DispatchThreadID)
 {
-	float4 sum = Result[xy + float2(-1, -1)] + Result[xy + float2(-1, 0)] + Result[xy + float2(-1, 1)]
-			   + Result[xy + float2(0, -1)] + Result[xy + float2(0, 0)] + Result[xy + float2(0, 1)]
-			   + Result[xy + float2(1, -1)] + Result[xy + float2(1, 0)] + Result[xy + float2(1, 1)];
+	int2 xy = id.xy;
+	//float4 sum = Image[xy + float2(-1, -1)] + Image[xy + float2(-1, 0)] + Image[xy + float2(-1, 1)]
+	//		   + Image[xy + float2(0, -1)] + Image[xy + float2(0, 0)] + Image[xy + float2(0, 1)]
+	//		   + Image[xy + float2(1, -1)] + Image[xy + float2(1, 0)] + Image[xy + float2(1, 1)];
+	//float bin = step(1, sum.x);
+	//Result[id.xy] = float4(bin, bin, bin, 1);
+	float4 sum = TexBuffer[F(xy + int2(-1, -1))] + TexBuffer[F(xy + int2(-1, 0))] + TexBuffer[F(xy + int2(-1, 1))]
+			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
+			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
 	float bin = step(1, sum.x);
-	return bin;
+	TexBuffer[F(xy)] = float4(bin, bin, bin, 1);
 }
 
-[numthreads(8, 8, 1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+float Edge(float2 xys[9])
 {
-	Result[id.xy] = Image[id.xy];
-	float bin = Erode(id.xy);
-	//float4 sum = Image[id.xy] + float4(0.1, 0.1, 0.1, 0.1);
-	Result[id.xy] = float4(bin, bin, bin, 1);
+	float gx[9] = {-1, 0, 1,
+                  -2, 0, 2,
+                  -1, 0, 1};
+	float gy[9] = {-1, -2, -1,
+				  0,  0,  0,
+				  1,  2,  1};
+
+	float edgeX = 0;
+	float edgeY = 0;
+
+	for (int i = 0; i < 9; i++)
+	{
+		float3 c = tex2D(_MainTex, uvs[i]).rgb;
+		float l = luminance(c);
+		edgeX += l * gx[i];
+		edgeY += l * gy[i];
+	}
+	return abs(edgeX) + abs(edgeY);
+}
+
+[numthreads(32, 32, 1)]
+void Thin(uint3 id : SV_DISPATCHTHREADID)
+{
 	
-	bin = Dilation(id.xy);
+}
+
+[numthreads(32, 32, 1)]
+void Tex2Buffer(uint3 id : SV_DispatchThreadID)
+{
+	TexBuffer[F(id.xy)] = Image[id.xy];
+}
+
+[numthreads(32, 32, 1)]
+void Buffer2Tex(uint3 id : SV_DispatchThreadID)
+{
+	Result[id.xy] = TexBuffer[F(id.xy)];
 }

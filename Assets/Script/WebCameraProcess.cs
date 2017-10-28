@@ -19,6 +19,8 @@ public class WebCameraProcess : MonoBehaviour
 	[SerializeField] private Shader[] shader;
 
 	[SerializeField] private ComputeShader[] compute;
+	private ComputeBuffer computeBuffer;
+	private Vector4[,] texBuffer;
 
 	private Matrix4x4 kernel;
 
@@ -39,14 +41,9 @@ public class WebCameraProcess : MonoBehaviour
 							   new Vector4(1, 1, 1),
 							   new Vector4());
 
-		//float s = kernel.m00 * kernel.m00 + kernel.m01 * kernel.m01 + kernel.m02 * kernel.m02 + kernel.m03 * kernel.m03
-		//		+ kernel.m10 * kernel.m10 + kernel.m11 * kernel.m11 + kernel.m12 * kernel.m12 + kernel.m13 * kernel.m13
-		//		+ kernel.m20 * kernel.m20 + kernel.m21 * kernel.m21 + kernel.m22 * kernel.m22 + kernel.m23 * kernel.m23
-		//		+ kernel.m30 * kernel.m30 + kernel.m31 * kernel.m31 + kernel.m32 * kernel.m32 + kernel.m33 * kernel.m33;
-		//for (int i = 0; i < 16; i++)
-		//{
-		//	kernel[i] /= s;
-		//}
+		texBuffer = new Vector4[256, 256];
+		computeBuffer = new ComputeBuffer(texBuffer.Length, System.Runtime.InteropServices.Marshal.SizeOf(Vector4.zero), ComputeBufferType.IndirectArguments);
+		print(texBuffer.Length);
 
 		InvokeRepeating("CameraUpdate", 0, 1 / webCameraTexture.requestedFPS);
 	}
@@ -57,8 +54,8 @@ public class WebCameraProcess : MonoBehaviour
 
 		//materials[0].SetFloat("_GrayThreshold", grayThreshold);
 		//materials[0].SetTexture("_SkinTex", skinTexture);
-		var rt1 = RenderTexture.GetTemporary(256, 256, 0);
-		var rt2 = RenderTexture.GetTemporary(256, 256, 0);
+		//var rt1 = RenderTexture.GetTemporary(256, 256, 0);
+		//var rt2 = RenderTexture.GetTemporary(256, 256, 0);
 		var rt3 = new RenderTexture(256, 256, 0, RenderTextureFormat.ARGB32);
 		var temp = RenderTexture.GetTemporary(256, 256, 0);
 		Graphics.Blit(webCameraTexture, nativeCameraTexture);
@@ -66,29 +63,55 @@ public class WebCameraProcess : MonoBehaviour
 
 		rt3.enableRandomWrite = true;
 		rt3.Create();
-		int kernelHandle = compute[0].FindKernel("CSMain");
-		compute[0].SetTexture(kernelHandle, "Image", temp);
-		compute[0].SetTexture(kernelHandle, "Result", rt3);
-		compute[0].Dispatch(kernelHandle, 256 / 8, 256 / 8, 1);
-		//compute[0].Get
+
+		int tex2BufferHandle = compute[0].FindKernel("Tex2Buffer");
+		int erodeHandle = compute[0].FindKernel("Erode");
+		int dilationHandle = compute[0].FindKernel("Dilation");
+		int buffer2TexHandle = compute[0].FindKernel("Buffer2Tex");
+		int thinHandle = compute[0].FindKernel("Thin");
+
+		compute[0].SetTexture(tex2BufferHandle, "Image", temp);
+		compute[0].SetBuffer(tex2BufferHandle, "TexBuffer", computeBuffer);
+		compute[0].SetTexture(buffer2TexHandle, "Result", rt3);
+		compute[0].SetBuffer(buffer2TexHandle, "TexBuffer", computeBuffer);
+		compute[0].SetBuffer(erodeHandle, "TexBuffer", computeBuffer);
+		compute[0].SetBuffer(dilationHandle, "TexBuffer", computeBuffer);
+
+		compute[0].Dispatch(tex2BufferHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(dilationHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(erodeHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(dilationHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(erodeHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(buffer2TexHandle, 256 / 32, 256 / 32, 1);
+
+
+
+
+
+
+
+
 
 		//materials[2].SetMatrix("_Kernel", kernel);
 		//materials[3].SetMatrix("_Kernel", kernel);
-		// Graphics.Blit(temp, rt2, materials[3]);
-		// Graphics.Blit(rt2, rt1, materials[2]);
-		// Graphics.Blit(rt1, rt2, materials[2]);
-		// Graphics.Blit(rt2, rt1, materials[3]);
-		// Graphics.Blit(rt1, rt2, materials[3]);
-		// Graphics.Blit(rt2, rt1, materials[2]);
-		// Graphics.Blit(rt1, rt2, materials[2]);
-		// Graphics.Blit(rt1, rt2, materials[3]);
-		// //Graphics.Blit(rt1, renderTexture)
+		//Graphics.Blit(temp, rt2, materials[3]);
+		//Graphics.Blit(rt2, rt1, materials[2]);
+		//Graphics.Blit(rt1, rt2, materials[2]);
+		//Graphics.Blit(rt2, rt1, materials[3]);
+		//Graphics.Blit(rt1, rt2, materials[3]);
+		//Graphics.Blit(rt2, rt1, materials[2]);
+		//Graphics.Blit(rt1, rt2, materials[2]);
+		//Graphics.Blit(rt1, rt2, materials[3]);
+		//Graphics.Blit(rt1, renderTexture)
 
 		//Graphics.Blit(rt1, renderTexture, materials[1]);
 		Graphics.Blit(rt3, renderTexture);
 
-		rt1.Release();
-		rt2.Release();
+		//computeBuffer.GetData(texBuffer);
+		//print(texBuffer[0, 0]);
+
+		//rt1.Release();
+		//rt2.Release();
 		rt3.Release();
 		temp.Release();
 	}
@@ -115,5 +138,10 @@ public class WebCameraProcess : MonoBehaviour
 		}
 
 		return null;
+	}
+
+	private void OnDestroy()
+	{
+		computeBuffer.Release();
 	}
 }

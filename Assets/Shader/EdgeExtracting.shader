@@ -79,22 +79,6 @@
 
 			fixed4 frag (v2f i) : SV_Target
 			{
-				////fixed col[9];
-				////col[0] = tex2D(_MainTex, i.uv[0]).x;
-				////col[1] = tex2D(_MainTex, i.uv[1]).x;
-				////col[2] = tex2D(_MainTex, i.uv[2]).x;
-				////col[3] = tex2D(_MainTex, i.uv[3]).x;
-				////col[4] = tex2D(_MainTex, i.uv[4]).x;
-				////col[5] = tex2D(_MainTex, i.uv[5]).x;
-				////col[6] = tex2D(_MainTex, i.uv[6]).x;
-				////col[7] = tex2D(_MainTex, i.uv[7]).x;
-				////col[8] = tex2D(_MainTex, i.uv[8]).x;
-				////fixed conv = col[0] * _Kernel3x3[0][0] + col[1] * _Kernel3x3[0][1] + col[2] * _Kernel3x3[0][2] +
-				////			 col[3] * _Kernel3x3[1][0] + col[4] * _Kernel3x3[1][1] + col[5] * _Kernel3x3[1][2] +
-				////			 col[6] * _Kernel3x3[2][0] + col[7] * _Kernel3x3[2][1] + col[6] * _Kernel3x3[2][2];
-				//////return fixed4(col[4], col[4], col[4], 1);
-				//conv *= 0.8;
-				//return fixed4(conv, conv, conv, 1);
 				half edge = sober(i.uv);
 				fixed4 tex = tex2D(_MainTex, i.uv[4]);
 				return fixed4(edge, edge, edge, 1);
