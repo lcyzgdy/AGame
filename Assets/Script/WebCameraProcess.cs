@@ -72,16 +72,20 @@ public class WebCameraProcess : MonoBehaviour
 
 		compute[0].SetTexture(tex2BufferHandle, "Image", temp);
 		compute[0].SetBuffer(tex2BufferHandle, "TexBuffer", computeBuffer);
-		compute[0].SetTexture(buffer2TexHandle, "Result", rt3);
+		compute[0].SetTexture(buffer2TexHandle, "Tex", rt3);
 		compute[0].SetBuffer(buffer2TexHandle, "TexBuffer", computeBuffer);
 		compute[0].SetBuffer(erodeHandle, "TexBuffer", computeBuffer);
 		compute[0].SetBuffer(dilationHandle, "TexBuffer", computeBuffer);
+		compute[0].SetBuffer(thinHandle, "TexBuffer", computeBuffer);
 
 		compute[0].Dispatch(tex2BufferHandle, 256 / 32, 256 / 32, 1);
 		compute[0].Dispatch(dilationHandle, 256 / 32, 256 / 32, 1);
 		compute[0].Dispatch(erodeHandle, 256 / 32, 256 / 32, 1);
 		compute[0].Dispatch(dilationHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(dilationHandle, 256 / 32, 256 / 32, 1);
 		compute[0].Dispatch(erodeHandle, 256 / 32, 256 / 32, 1);
+		compute[0].Dispatch(erodeHandle, 256 / 32, 256 / 32, 1);
+		//compute[0].Dispatch(thinHandle, 256 / 32, 256 / 32, 1);
 		compute[0].Dispatch(buffer2TexHandle, 256 / 32, 256 / 32, 1);
 
 

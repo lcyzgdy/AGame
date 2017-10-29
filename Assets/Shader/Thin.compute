@@ -3,10 +3,11 @@
 #pragma kernel Dilation
 #pragma kernel Tex2Buffer
 #pragma kernel Buffer2Tex
+#pragma kernel Thin
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWTexture2D<float4> Result;
+RWTexture2D<float4> Tex;
 Texture2D<float4> Image;
 
 RWStructuredBuffer<float4> TexBuffer;
@@ -24,7 +25,7 @@ void Erode(uint3 id : SV_DispatchThreadID)
 	//		   + Image[xy + float2(0, -1)] + Image[xy + float2(0, 0)] + Image[xy + float2(0, 1)]
 	//		   + Image[xy + float2(1, -1)] + Image[xy + float2(1, 0)] + Image[xy + float2(1, 1)];
 	//float bin = step(9, sum.x);
-	//Result[id.xy] = float4(bin, bin, bin, 1);
+	//Tex[id.xy] = float4(bin, bin, bin, 1);
 	float4 sum = TexBuffer[F(xy + int2(-1, -1))] + TexBuffer[F(xy + int2(-1, 0))] + TexBuffer[F(xy + int2(-1, 1))]
 			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
 			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
@@ -40,7 +41,7 @@ void Dilation(uint3 id : SV_DispatchThreadID)
 	//		   + Image[xy + float2(0, -1)] + Image[xy + float2(0, 0)] + Image[xy + float2(0, 1)]
 	//		   + Image[xy + float2(1, -1)] + Image[xy + float2(1, 0)] + Image[xy + float2(1, 1)];
 	//float bin = step(1, sum.x);
-	//Result[id.xy] = float4(bin, bin, bin, 1);
+	//Tex[id.xy] = float4(bin, bin, bin, 1);
 	float4 sum = TexBuffer[F(xy + int2(-1, -1))] + TexBuffer[F(xy + int2(-1, 0))] + TexBuffer[F(xy + int2(-1, 1))]
 			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
 			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
@@ -51,19 +52,18 @@ void Dilation(uint3 id : SV_DispatchThreadID)
 float Edge(float2 xys[9])
 {
 	float gx[9] = {-1, 0, 1,
-                  -2, 0, 2,
-                  -1, 0, 1};
+                   -2, 0, 2,
+                   -1, 0, 1};
 	float gy[9] = {-1, -2, -1,
-				  0,  0,  0,
-				  1,  2,  1};
+				    0,  0,  0,
+				    1,  2,  1};
 
 	float edgeX = 0;
 	float edgeY = 0;
 
 	for (int i = 0; i < 9; i++)
 	{
-		float3 c = tex2D(_MainTex, uvs[i]).rgb;
-		float l = luminance(c);
+		float l = TexBuffer[F(xys[i].xy)].x;
 		edgeX += l * gx[i];
 		edgeY += l * gy[i];
 	}
@@ -71,9 +71,20 @@ float Edge(float2 xys[9])
 }
 
 [numthreads(32, 32, 1)]
-void Thin(uint3 id : SV_DISPATCHTHREADID)
+void Thin(uint3 id : SV_DispatchThreadID, uint index : SV_GroupIndex)
 {
-	
+	float2 uv[9];
+	uv[0] = id.xy + float2(-1, 1);
+	uv[1] = id.xy + float2(0, 1);
+	uv[2] = id.xy + float2(1, 1);
+	uv[3] = id.xy + float2(-1, 0);
+	uv[4] = id.xy + float2(0, 0);
+	uv[5] = id.xy + float2(1, 0);
+	uv[6] = id.xy + float2(-1, -1);
+	uv[7] = id.xy + float2(0, -1);
+	uv[8] = id.xy + float2(1, -1);
+	float e = Edge(uv);
+	TexBuffer[F(id.xy)] = float4(e, e, e, 1);
 }
 
 [numthreads(32, 32, 1)]
@@ -85,5 +96,5 @@ void Tex2Buffer(uint3 id : SV_DispatchThreadID)
 [numthreads(32, 32, 1)]
 void Buffer2Tex(uint3 id : SV_DispatchThreadID)
 {
-	Result[id.xy] = TexBuffer[F(id.xy)];
+	Tex[id.xy] = TexBuffer[F(id.xy)];
 }
