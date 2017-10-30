@@ -4,11 +4,14 @@
 #pragma kernel Tex2Buffer
 #pragma kernel Buffer2Tex
 #pragma kernel Thin
+#pragma kernel Connect
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> Tex;
 Texture2D<float4> Image;
+RWTexture2D<float4> Edge;
+RWStructuredBuffer<int4> ConnectGraphic;
 
 RWStructuredBuffer<float4> TexBuffer;
 
@@ -49,42 +52,122 @@ void Dilation(uint3 id : SV_DispatchThreadID)
 	TexBuffer[F(xy)] = float4(bin, bin, bin, 1);
 }
 
-float Edge(float2 xys[9])
+[numthreads(32, 32, 1)]
+void Connect(uint3 id : SV_DispatchThreadID)
 {
-	float gx[9] = {-1, 0, 1,
-                   -2, 0, 2,
-                   -1, 0, 1};
-	float gy[9] = {-1, -2, -1,
-				    0,  0,  0,
-				    1,  2,  1};
-
-	float edgeX = 0;
-	float edgeY = 0;
-
-	for (int i = 0; i < 9; i++)
-	{
-		float l = TexBuffer[F(xys[i].xy)].x;
-		edgeX += l * gx[i];
-		edgeY += l * gy[i];
-	}
-	return abs(edgeX) + abs(edgeY);
+	int4 sum = Edge[id.xy + int2(-1, -1)] + Edge[id.xy + int2(-1, 0)] + Edge[id.xy + int2(-1, 1)]
+			 + Edge[id.xy + int2( 0, -1)] + Edge[id.xy + int2( 0, 0)] + Edge[id.xy + int2( 0, 1)]
+			 + Edge[id.xy + int2( 1, -1)] + Edge[id.xy + int2( 1, 0)] + Edge[id.xy + int2( 1, 1)];
+	ConnectGraphic[F(id.xy)] = sum;
 }
 
 [numthreads(32, 32, 1)]
-void Thin(uint3 id : SV_DispatchThreadID, uint index : SV_GroupIndex)
+void Thin(uint3 id : SV_DispatchThreadID)
 {
-	float2 uv[9];
-	uv[0] = id.xy + float2(-1, 1);
-	uv[1] = id.xy + float2(0, 1);
-	uv[2] = id.xy + float2(1, 1);
-	uv[3] = id.xy + float2(-1, 0);
-	uv[4] = id.xy + float2(0, 0);
-	uv[5] = id.xy + float2(1, 0);
-	uv[6] = id.xy + float2(-1, -1);
-	uv[7] = id.xy + float2(0, -1);
-	uv[8] = id.xy + float2(1, -1);
-	float e = Edge(uv);
-	TexBuffer[F(id.xy)] = float4(e, e, e, 1);
+	while(true)
+	{
+		if (Edge[id.xy].x == 1)
+		{
+			int count;
+			for(int i = -1; i <= 1; i++)
+			{
+				for(int j = -1; j <= 1; j++)
+				{
+					if( i == j && j == 0) continue;
+					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 : 0;
+				}
+			}
+			if (count == 8)
+			{
+				Edge[id.xy] = float4(0, 0, 0, 0);
+				Tex[id.xy] = float4(0, 0, 0, 0);
+			}
+		}
+		AllMemoryBarrierWithGroupSync();
+		if (Edge[id.xy].x == 1)
+		{
+			int count;
+			for(int i = -1; i <= 1; i++)
+			{
+				for(int j = -1; j <= 1; j++)
+				{
+					if( i == j && j == 0) continue;
+					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 : 0) : 0;
+				}
+			}
+			if (count == 8)
+			{
+				Edge[id.xy] = float4(0, 0, 0, 0);
+				Tex[id.xy] = float4(0, 0, 0, 0);
+			}
+		}
+		AllMemoryBarrierWithGroupSync();
+		if (Edge[id.xy].x == 1)
+		{
+			int count;
+			for(int i = -1; i <= 1; i++)
+			{
+				for(int j = -1; j <= 1; j++)
+				{
+					if( i == j && j == 0) continue;
+					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 1 : 0) : 0) : 0;
+				}
+			}
+			if (count == 8)
+			{
+				Edge[id.xy] = float4(0, 0, 0, 0);
+				Tex[id.xy] = float4(0, 0, 0, 0);
+			}
+		}
+		AllMemoryBarrierWithGroupSync();
+		if (Edge[id.xy].x == 1)
+		{
+			int count;
+			for(int i = -1; i <= 1; i++)
+			{
+				for(int j = -1; j <= 1; j++)
+				{
+					if( i == j && j == 0) continue;
+					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 1 : 0) : 0) : 0) : 0;
+				}
+			}
+			if (count == 8)
+			{
+				Edge[id.xy] = float4(0, 0, 0, 0);
+				Tex[id.xy] = float4(0, 0, 0, 0);
+			}
+		}
+		AllMemoryBarrierWithGroupSync();
+		if (Edge[id.xy].x == 1)
+		{
+			int count;
+			for(int i = -1; i <= 1; i++)
+			{
+				for(int j = -1; j <= 1; j++)
+				{
+					if( i == j && j == 0) continue;
+					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 
+							((ConnectGraphic[F(id.xy + int2(i, j))].x == 7)? 1 : 0) : 0) : 0) : 0) : 0;
+				}
+			}
+			if (count == 8)
+			{
+				Edge[id.xy] = float4(0, 0, 0, 0);
+				Tex[id.xy] = float4(0, 0, 0, 0);
+			}
+			else break;
+		}
+		AllMemoryBarrierWithGroupSync();
+	}
 }
 
 [numthreads(32, 32, 1)]

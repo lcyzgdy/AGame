@@ -64,8 +64,8 @@
 
 				fixed sum = _Kernel[0][0] * b[0] + _Kernel[0][1] * b[1] + _Kernel[0][2] * b[2] +
 							_Kernel[1][0] * b[3] + _Kernel[1][1] * b[4] + _Kernel[1][2] * b[5] +
-							_Kernel[2][1] * b[6] + _Kernel[2][2] * b[7] + _Kernel[2][3] * b[6];
-				fixed bin = step(8, sum);
+							_Kernel[2][0] * b[6] + _Kernel[2][1] * b[7] + _Kernel[2][2] * b[8];
+				fixed bin = step(9, sum);
 				return fixed4(bin, bin, bin, 1);
 			}
 			ENDCG
