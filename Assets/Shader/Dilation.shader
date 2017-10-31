@@ -61,12 +61,38 @@
 				b[6] = tex2D(_MainTex, i.uv[6]).x;
 				b[7] = tex2D(_MainTex, i.uv[7]).x;
 				b[8] = tex2D(_MainTex, i.uv[8]).x;
-
+				
 				fixed sum = _Kernel[0][0] * b[0] + _Kernel[0][1] * b[1] + _Kernel[0][2] * b[2] +
 							_Kernel[1][0] * b[3] + _Kernel[1][1] * b[4] + _Kernel[1][2] * b[5] +
 							_Kernel[2][0] * b[6] + _Kernel[2][1] * b[7] + _Kernel[2][2] * b[8];
 				fixed bin = step(2, sum);
 				return fixed4(bin, bin, bin, 1);
+				//fixed b[25];
+				//for(int j = 0; j < 25; j++)
+				//{
+				//	b[j] = tex2D(_MainTex, i.uv[j]).x;
+				//}
+				////b[0] = tex2D(_MainTex, i.uv[0]).x;
+				////b[1] = tex2D(_MainTex, i.uv[1]).x;
+				////b[2] = tex2D(_MainTex, i.uv[2]).x;
+				////b[3] = tex2D(_MainTex, i.uv[3]).x;
+				////b[4] = tex2D(_MainTex, i.uv[4]).x;
+				////b[5] = tex2D(_MainTex, i.uv[5]).x;
+				////b[6] = tex2D(_MainTex, i.uv[6]).x;
+				////b[7] = tex2D(_MainTex, i.uv[7]).x;
+				////b[8] = tex2D(_MainTex, i.uv[8]).x;
+				//
+				////fixed sum = _Kernel[0][0] * b[0] + _Kernel[0][1] * b[1] + _Kernel[0][2] * b[2] +
+				////			_Kernel[1][0] * b[3] + _Kernel[1][1] * b[4] + _Kernel[1][2] * b[5] +
+				////			_Kernel[2][0] * b[6] + _Kernel[2][1] * b[7] + _Kernel[2][2] * b[8];
+				////fixed bin = step(9, sum);
+				//fixed sum = 0;
+				//for(int k = 0; k < 25; k++)
+				//{
+				//	sum += b[k] * _Kernel[k];
+				//}
+				//fixed bin = step(2, sum);
+				//return fixed4(bin, bin, bin, 1);
 			}
 			ENDCG
 		}
