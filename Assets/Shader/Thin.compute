@@ -19,7 +19,7 @@ RWStructuredBuffer<int> DebugBuffer;
 
 inline int F(int2 xy)
 {
-	return int(xy.x * 256 + xy.y);
+	return int(xy.x * 128 + xy.y);
 }
 
 [numthreads(32, 32, 1)]
