@@ -6,18 +6,24 @@ using UnityEditor.Animations;
 namespace Cinemachine.Editor
 {
     [CustomEditor(typeof(CinemachineStateDrivenCamera))]
-    internal sealed class CinemachineStateDrivenCameraEditor 
-        : CinemachineVirtualCameraBaseEditor<CinemachineStateDrivenCamera>
+    internal sealed class CinemachineStateDrivenCameraEditor : CinemachineVirtualCameraBaseEditor
     {
+        private CinemachineStateDrivenCamera Target { get { return target as CinemachineStateDrivenCamera; } }
         EmbeddeAssetEditor<CinemachineBlenderSettings> m_BlendsEditor;
 
         protected override List<string> GetExcludedPropertiesInInspector()
         {
-            List<string> excluded = base.GetExcludedPropertiesInInspector();
-            excluded.Add(FieldPath(x => x.m_CustomBlends));
-            excluded.Add(FieldPath(x => x.m_Instructions));
+            List<string> excluded = new List<string>();
+            excluded.AddRange(Target.m_ExcludedPropertiesInInspector);
+            excluded.Add(SerializedPropertyHelper.PropertyName(() => Target.m_LayerIndex));
+            excluded.Add(SerializedPropertyHelper.PropertyName(() => Target.m_DefaultBlend));
+            excluded.Add(SerializedPropertyHelper.PropertyName(() => Target.m_ChildCameras));
+            excluded.Add(SerializedPropertyHelper.PropertyName(() => Target.m_Instructions));
             return excluded;
         }
+
+        private static readonly GUIContent activeAfterLabel = new GUIContent("", "Camera is activated only after this state has been active for this amount of time");
+        private static readonly GUIContent minDurationLabel = new GUIContent("", "Once camera is activated, it will remain active for at least this long");
 
         private UnityEditorInternal.ReorderableList mChildList;
         private UnityEditorInternal.ReorderableList mInstructionList;
@@ -26,7 +32,7 @@ namespace Cinemachine.Editor
         {
             base.OnEnable();
             m_BlendsEditor = new EmbeddeAssetEditor<CinemachineBlenderSettings>(
-                    FieldPath(x => x.m_CustomBlends), this);
+                    SerializedPropertyHelper.PropertyName(() => Target.m_CustomBlends), this);
             m_BlendsEditor.OnChanged = (CinemachineBlenderSettings b) =>
                 {
                     UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
@@ -50,39 +56,32 @@ namespace Cinemachine.Editor
 
         public override void OnInspectorGUI()
         {
-            BeginInspector();
             if (mInstructionList == null)
                 SetupInstructionList();
             if (mChildList == null)
                 SetupChildList();
 
-            if (Target.m_AnimatedTarget == null)
-                EditorGUILayout.HelpBox("An Animated Target is required", MessageType.Warning);
-
             // Ordinary properties
-            DrawHeaderInInspector();
-            DrawPropertyInInspector(FindProperty(x => x.m_Priority));
-            DrawTargetsInInspector(FindProperty(x => x.m_Follow), FindProperty(x => x.m_LookAt));
-            DrawPropertyInInspector(FindProperty(x => x.m_AnimatedTarget));
+            base.OnInspectorGUI();
 
             // Layer index
             EditorGUI.BeginChangeCheck();
             UpdateTargetStates();
             UpdateCameraCandidates();
-            SerializedProperty layerProp = FindAndExcludeProperty(x => x.m_LayerIndex);
+            SerializedProperty layerProp = serializedObject.FindProperty(() => Target.m_LayerIndex);
             int currentLayer = layerProp.intValue;
             int layerSelection = EditorGUILayout.Popup("Layer", currentLayer, mLayerNames);
             if (currentLayer != layerSelection)
                 layerProp.intValue = layerSelection;
+            EditorGUILayout.PropertyField(serializedObject.FindProperty(() => Target.m_DefaultBlend));
             if (EditorGUI.EndChangeCheck())
             {
                 serializedObject.ApplyModifiedProperties();
                 Target.ValidateInstructions();
             }
 
-            DrawRemainingPropertiesInInspector();
-
             // Blends
+            EditorGUILayout.Separator();
             m_BlendsEditor.DrawEditorCombo(
                 "Create New Blender Asset",
                 Target.gameObject.name + " Blends", "asset", string.Empty,
@@ -101,9 +100,6 @@ namespace Cinemachine.Editor
                 serializedObject.ApplyModifiedProperties();
                 Target.ValidateInstructions();
             }
-
-            // Extensions
-            DrawExtensionsWidgetInInspector();
         }
 
         private string[] mLayerNames;
@@ -274,21 +270,21 @@ namespace Cinemachine.Editor
             float vSpace = 2;
             float hSpace = 3;
             float floatFieldWidth = EditorGUIUtility.singleLineHeight * 2.5f;
-            float hBigSpace = EditorGUIUtility.singleLineHeight * 2 / 3;
             mInstructionList.drawHeaderCallback = (Rect rect) =>
                 {
-                    float sharedWidth = rect.width - EditorGUIUtility.singleLineHeight 
-                        - 2 * (hBigSpace + floatFieldWidth) - hSpace;
-                    rect.x += EditorGUIUtility.singleLineHeight; rect.width = sharedWidth / 2; 
+                    rect.width -= (EditorGUIUtility.singleLineHeight + 3 * hSpace);
+                    rect.width -= 2 * floatFieldWidth; rect.width /= 2;
+                    Vector2 pos = rect.position; pos.x += EditorGUIUtility.singleLineHeight;
+                    rect.position = pos;
                     EditorGUI.LabelField(rect, "State");
 
-                    rect.x += rect.width + hSpace; 
+                    pos.x += rect.width + hSpace; rect.position = pos;
                     EditorGUI.LabelField(rect, "Camera");
 
-                    rect.x += rect.width + hBigSpace; rect.width = floatFieldWidth;
+                    pos.x += rect.width + hSpace; rect.width = floatFieldWidth; rect.position = pos;
                     EditorGUI.LabelField(rect, "Wait");
 
-                    rect.x += rect.width + hBigSpace;
+                    pos.x += rect.width + hSpace; rect.position = pos;
                     EditorGUI.LabelField(rect, "Min");
                 };
 
@@ -297,17 +293,19 @@ namespace Cinemachine.Editor
                 {
                     SerializedProperty instProp
                         = mInstructionList.serializedProperty.GetArrayElementAtIndex(index);
-                    float sharedWidth = rect.width - 2 * (hBigSpace + floatFieldWidth) - hSpace;
-                    rect.y += vSpace; rect.height = EditorGUIUtility.singleLineHeight;
 
-                    rect.width = sharedWidth / 2; 
+                    rect.y += vSpace;
+                    rect.height = EditorGUIUtility.singleLineHeight;
+                    Vector2 pos = rect.position;
+                    rect.width -= 3 * hSpace;
+                    rect.width -= 2 * floatFieldWidth; rect.width /= 2;
                     SerializedProperty stateSelProp = instProp.FindPropertyRelative(() => def.m_FullHash);
                     int currentState = GetStateHashIndex(stateSelProp.intValue);
                     int stateSelection = EditorGUI.Popup(rect, currentState, mTargetStateNames);
                     if (currentState != stateSelection)
                         stateSelProp.intValue = mTargetStates[stateSelection];
 
-                    rect.x += rect.width + hSpace;
+                    pos.x += rect.width + hSpace; rect.position = pos;
                     SerializedProperty vcamSelProp = instProp.FindPropertyRelative(() => def.m_VirtualCamera);
                     int currentVcam = GetCameraIndex(vcamSelProp.objectReferenceValue);
                     int vcamSelection = EditorGUI.Popup(rect, currentVcam, mCameraCandidates);
@@ -315,18 +313,13 @@ namespace Cinemachine.Editor
                         vcamSelProp.objectReferenceValue = (vcamSelection == 0)
                             ? null : Target.ChildCameras[vcamSelection - 1];
 
-                    float oldWidth = EditorGUIUtility.labelWidth;
-                    EditorGUIUtility.labelWidth = hBigSpace; 
-                    
-                    rect.x += rect.width; rect.width = floatFieldWidth + hBigSpace;
+                    pos.x += rect.width + hSpace; rect.width = floatFieldWidth; rect.position = pos;
                     SerializedProperty activeAfterProp = instProp.FindPropertyRelative(() => def.m_ActivateAfter);
-                    EditorGUI.PropertyField(rect, activeAfterProp, new GUIContent(" ", activeAfterProp.tooltip));
+                    EditorGUI.PropertyField(rect, activeAfterProp, activeAfterLabel);
 
-                    rect.x += rect.width;
+                    pos.x += rect.width + hSpace; rect.position = pos;
                     SerializedProperty minDurationProp = instProp.FindPropertyRelative(() => def.m_MinDuration);
-                    EditorGUI.PropertyField(rect, minDurationProp, new GUIContent(" ", minDurationProp.tooltip));
-    
-                    EditorGUIUtility.labelWidth = oldWidth; 
+                    EditorGUI.PropertyField(rect, minDurationProp, minDurationLabel);
                 };
 
             mInstructionList.onAddDropdownCallback = (Rect buttonRect, UnityEditorInternal.ReorderableList l) =>
@@ -380,7 +373,6 @@ namespace Cinemachine.Editor
             float vSpace = 2;
             float hSpace = 3;
             float floatFieldWidth = EditorGUIUtility.singleLineHeight * 2.5f;
-            float hBigSpace = EditorGUIUtility.singleLineHeight * 2 / 3;
 
             mChildList = new UnityEditorInternal.ReorderableList(serializedObject,
                     serializedObject.FindProperty(() => Target.m_ChildCameras),
@@ -398,18 +390,20 @@ namespace Cinemachine.Editor
             mChildList.drawElementCallback
                 = (Rect rect, int index, bool isActive, bool isFocused) =>
                 {
-                    rect.y += vSpace; rect.height = EditorGUIUtility.singleLineHeight;
-                    rect.width -= floatFieldWidth + hBigSpace;
-                    SerializedProperty element = mChildList.serializedProperty.GetArrayElementAtIndex(index);
+                    rect.y += vSpace;
+                    Vector2 pos = rect.position;
+                    rect.width -= floatFieldWidth + hSpace;
+                    rect.height = EditorGUIUtility.singleLineHeight;
+                    SerializedProperty element
+                        = mChildList.serializedProperty.GetArrayElementAtIndex(index);
                     EditorGUI.PropertyField(rect, element, GUIContent.none);
 
-                    float oldWidth = EditorGUIUtility.labelWidth;
-                    EditorGUIUtility.labelWidth = hBigSpace; 
                     SerializedObject obj = new SerializedObject(element.objectReferenceValue);
-                    rect.x += rect.width + hSpace; rect.width = floatFieldWidth + hBigSpace;
+                    pos.x += rect.width + hSpace; rect.position = pos;
+                    rect.width -= floatFieldWidth + hSpace;
+                    rect.width = floatFieldWidth;
                     SerializedProperty priorityProp = obj.FindProperty(() => Target.m_Priority);
-                    EditorGUI.PropertyField(rect, priorityProp, new GUIContent(" ", priorityProp.tooltip));
-                    EditorGUIUtility.labelWidth = oldWidth; 
+                    EditorGUI.PropertyField(rect, priorityProp, GUIContent.none);
                     obj.ApplyModifiedProperties();
                 };
             mChildList.onChangedCallback = (UnityEditorInternal.ReorderableList l) =>

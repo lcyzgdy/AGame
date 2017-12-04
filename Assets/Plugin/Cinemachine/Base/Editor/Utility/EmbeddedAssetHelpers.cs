@@ -53,8 +53,6 @@ namespace Cinemachine.Editor
         private UnityEditor.Editor m_Owner = null;
         private bool m_DoVersionControlChecks = false;
 
-        const int kIndentOffset = 6;
-
         /// <summary>
         /// Call this from OnInspectorGUI.  Will draw the asset reference field, and
         /// the embedded editor, or a Create Asset button, if no asset is set.
@@ -64,13 +62,13 @@ namespace Cinemachine.Editor
             string showLabel, bool indent)
         {
             SerializedProperty property = m_Owner.serializedObject.FindProperty(m_PropertyName);
+            EditorGUILayout.BeginVertical(GUI.skin.box);
             if (m_Editor == null)
                 UpdateEditor();
             if (m_Editor == null)
                 AssetFieldWithCreateButton(property, title, defaultName, extension, message);
             else
             {
-                EditorGUILayout.BeginVertical(GUI.skin.box);
                 Rect rect = EditorGUILayout.GetControlRect(true);
                 rect.height = EditorGUIUtility.singleLineHeight;
                 EditorGUI.BeginChangeCheck();
@@ -82,8 +80,9 @@ namespace Cinemachine.Editor
                 }
                 if (m_Editor != null)
                 {
+                    int indentOffset = 6;
                     Rect foldoutRect = new Rect(
-                        rect.x - kIndentOffset, rect.y, rect.width + kIndentOffset, rect.height);
+                        rect.x - indentOffset, rect.y, rect.width + indentOffset, rect.height);
                     property.isExpanded = EditorGUI.Foldout(
                         foldoutRect, property.isExpanded, GUIContent.none);
 
@@ -100,9 +99,6 @@ namespace Cinemachine.Editor
                     if (property.isExpanded)
                     {
                         EditorGUILayout.Separator();
-                        EditorGUILayout.HelpBox(
-                            "This is a shared asset.  Changes made here will apply to all users of this asset.", 
-                            MessageType.Info);
                         EditorGUI.BeginChangeCheck();
                         if (indent)
                             ++EditorGUI.indentLevel;
@@ -119,8 +115,8 @@ namespace Cinemachine.Editor
                             targetAsset, UnityEditor.VersionControl.CheckoutMode.Both);
                     }
                 }
-                EditorGUILayout.EndVertical();
             }
+            EditorGUILayout.EndVertical();
         }
 
         private void AssetFieldWithCreateButton(
@@ -128,14 +124,11 @@ namespace Cinemachine.Editor
             string title, string defaultName, string extension, string message)
         {
             EditorGUI.BeginChangeCheck();
-
-            float hSpace = 5;
-            float buttonWidth = GUI.skin.button.CalcSize(m_CreateButtonGUIContent).x;
-            Rect r = EditorGUILayout.GetControlRect(true);
-            r.width -= buttonWidth + hSpace;
-            EditorGUI.PropertyField(r, property);
-            r.x += r.width + hSpace; r.width = buttonWidth;
-            if (GUI.Button(r, m_CreateButtonGUIContent))
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.PropertyField(property);
+            if (GUILayout.Button(m_CreateButtonGUIContent,
+                    GUILayout.ExpandWidth(false),
+                    GUILayout.MaxHeight(EditorGUIUtility.singleLineHeight)))
             {
                 string newAssetPath = EditorUtility.SaveFilePanelInProject(
                         title, defaultName, extension, message);
@@ -146,6 +139,7 @@ namespace Cinemachine.Editor
                     m_Owner.serializedObject.ApplyModifiedProperties();
                 }
             }
+            EditorGUILayout.EndHorizontal();
             if (EditorGUI.EndChangeCheck())
             {
                 m_Owner.serializedObject.ApplyModifiedProperties();

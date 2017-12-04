@@ -72,7 +72,7 @@ namespace Cinemachine
 
         /// <summary>Set this to limit how close to the target the camera can get</summary>
         [Tooltip("Set this to limit how close to the target the camera can get.")]
-        public float m_MinimumDistance = 1;
+        public float m_MinimumDistance = 0;
 
         /// <summary>Set this to limit how far from the taregt the camera can get</summary>
         [Tooltip("Set this to limit how far from the target the camera can get.")]
@@ -88,66 +88,41 @@ namespace Cinemachine
         [Tooltip("If adjusting FOV, will not set the FOV higher than this.")]
         public float m_MaximumFOV = 60;
 
-        /// <summary>If adjusting Orthographic Size, will not set it lower than this</summary>
-        [Tooltip("If adjusting Orthographic Size, will not set it lower than this.")]
-        public float m_MinimumOrthoSize = 1;
-
-        /// <summary>If adjusting Orthographic Size, will not set it higher than this</summary>
-        [Tooltip("If adjusting Orthographic Size, will not set it higher than this.")]
-        public float m_MaximumOrthoSize = 100;
-
         private void OnValidate()
         {
-            m_GroupFramingSize = Mathf.Max(Epsilon, m_GroupFramingSize);
+            m_GroupFramingSize = Mathf.Max(UnityVectorExtensions.Epsilon, m_GroupFramingSize);
             m_MaxDollyIn = Mathf.Max(0, m_MaxDollyIn);
             m_MaxDollyOut = Mathf.Max(0, m_MaxDollyOut);
             m_MinimumDistance = Mathf.Max(0, m_MinimumDistance);
             m_MaximumDistance = Mathf.Max(m_MinimumDistance, m_MaximumDistance);
             m_MinimumFOV = Mathf.Max(1, m_MinimumFOV);
             m_MaximumFOV = Mathf.Clamp(m_MaximumFOV, m_MinimumFOV, 179);
-            m_MinimumOrthoSize = Mathf.Max(0.01f, m_MinimumOrthoSize);
-            m_MaximumOrthoSize = Mathf.Max(m_MinimumOrthoSize, m_MaximumOrthoSize);
         }
 
-        /// <summary>Get LookAt target as CinemachineTargetGroup, or null if target is not a group</summary>
-        public CinemachineTargetGroup TargetGroup 
-        { 
-            get
-            {
-                Transform lookAt = LookAtTarget;
-                if (lookAt != null)
-                    return lookAt.GetComponent<CinemachineTargetGroup>();
-                return null;
-            }
-        }
-        
         /// <summary>Applies the composer rules and orients the camera accordingly</summary>
         /// <param name="state">The current camera state</param>
+        /// <param name="statePrevFrame">The camera state on the previous frame (unused)</param>
         /// <param name="deltaTime">Used for calculating damping.  If less than
-        /// zero, then target will snap to the center of the dead zone.</param>
-        public override void MutateCameraState(ref CameraState curState, float deltaTime)
+        /// or equal to zero, then target will snap to the center of the dead zone.</param>
+        /// <returns>curState with RawOrientation applied</returns>
+        public override CameraState MutateCameraState(
+            CameraState state, CameraState statePrevFrame, float deltaTime)
         {
+            if (!IsValid || !state.HasLookAt)
+                return state;
+
             // Can't do anything without a group to look at
-            CinemachineTargetGroup group = TargetGroup;
+            CinemachineTargetGroup group = VirtualCamera.LookAt.GetComponent<CinemachineTargetGroup>();
             if (group == null)
-            {
-                base.MutateCameraState(ref curState, deltaTime);
-                return;
-            }
+                return base.MutateCameraState(state, statePrevFrame, deltaTime);
 
-            if (!IsValid || !curState.HasLookAt)
-            {
-                m_prevTargetHeight = 0;
-                return;
-            }
-
-            curState.ReferenceLookAt = GetLookAtPointAndSetTrackedPoint(group.transform.position);
-            Vector3 currentOffset = TrackedPoint - curState.RawPosition;
+            group.Update(); // Make sure the group's position is fully updated. 
+            state.ReferenceLookAt = group.transform.position;
+            Vector3 lookAtPosition = GetTrackedPoint(state.ReferenceLookAt);
+            Vector3 currentOffset = lookAtPosition - state.CorrectedPosition;
             float currentDistance = currentOffset.magnitude;
-            if (currentDistance < Epsilon)
-                return;  // navel-gazing, get outa here
-
-            //UnityEngine.Profiling.Profiler.BeginSample("CinemachineGroupComposer.MutateCameraState");
+            if (currentDistance < UnityVectorExtensions.Epsilon)
+                return state;  // navel-gazing, get outa here
 
             // Get the camera axis
             Vector3 fwd = currentOffset.AlmostZero() ? Vector3.forward : currentOffset.normalized;
@@ -156,25 +131,25 @@ namespace Cinemachine
             Bounds bounds = group.BoundingBox;
             m_lastBoundsMatrix = Matrix4x4.TRS(
                     bounds.center - (fwd * bounds.extents.magnitude),
-                    Quaternion.LookRotation(fwd, curState.ReferenceUp), Vector3.one);
+                    Quaternion.LookRotation(fwd, state.ReferenceUp), Vector3.one);
             m_LastBounds = group.GetViewSpaceBoundingBox(m_lastBoundsMatrix);
             float targetHeight = GetTargetHeight(m_LastBounds);
             Vector3 targetPos = m_lastBoundsMatrix.MultiplyPoint3x4(m_LastBounds.center);
 
             // Apply damping
-            if (deltaTime >= 0)
+            if (deltaTime > 0 && m_FrameDamping > 0)
             {
                 float delta = targetHeight - m_prevTargetHeight;
-                delta = Damper.Damp(delta, m_FrameDamping, deltaTime);
+                delta *= deltaTime / Mathf.Max(m_FrameDamping * kHumanReadableDampingScale, deltaTime);
                 targetHeight = m_prevTargetHeight + delta;
             }
             m_prevTargetHeight = targetHeight;
 
             // Move the camera
-            if (!curState.Lens.Orthographic && m_AdjustmentMode != AdjustmentMode.ZoomOnly)
+            if (!state.Lens.Orthographic && m_AdjustmentMode != AdjustmentMode.ZoomOnly)
             {
                 // What distance would be needed to get the target height, at the current FOV
-                float currentFOV = curState.Lens.FieldOfView;
+                float currentFOV = state.Lens.FieldOfView;
                 float targetDistance = targetHeight / (2f * Mathf.Tan(currentFOV * Mathf.Deg2Rad / 2f));
 
                 // target the near surface of the bounding box
@@ -186,27 +161,26 @@ namespace Cinemachine
                 cameraDistance = Mathf.Clamp(cameraDistance, m_MinimumDistance, m_MaximumDistance);
 
                 // Apply
-                curState.PositionCorrection += targetPos - fwd * cameraDistance - curState.RawPosition;
+                state.PositionCorrection += targetPos - fwd * cameraDistance - state.CorrectedPosition;
             }
 
             // Apply zoom
-            if (curState.Lens.Orthographic || m_AdjustmentMode != AdjustmentMode.DollyOnly)
+            if (state.Lens.Orthographic || m_AdjustmentMode != AdjustmentMode.DollyOnly)
             {
-                float nearBoundsDistance = (TrackedPoint - curState.CorrectedPosition).magnitude
+                float nearBoundsDistance = (lookAtPosition - state.CorrectedPosition).magnitude
                     - m_LastBounds.extents.z;
                 float currentFOV = 179;
-                if (nearBoundsDistance > Epsilon)
+                if (nearBoundsDistance > UnityVectorExtensions.Epsilon)
                     currentFOV = 2f * Mathf.Atan(targetHeight / (2 * nearBoundsDistance)) * Mathf.Rad2Deg;
 
-                LensSettings lens = curState.Lens;
+                LensSettings lens = state.Lens;
                 lens.FieldOfView = Mathf.Clamp(currentFOV, m_MinimumFOV, m_MaximumFOV);
-                lens.OrthographicSize = Mathf.Clamp(targetHeight / 2, m_MinimumOrthoSize, m_MaximumOrthoSize);
-                curState.Lens = lens;
+                lens.OrthographicSize = targetHeight / 2;
+                state.Lens = lens;
             }
 
             // Now compose normally
-            base.MutateCameraState(ref curState, deltaTime);
-            //UnityEngine.Profiling.Profiler.EndSample();
+            return base.MutateCameraState(state, statePrevFrame, deltaTime);
         }
 
         float m_prevTargetHeight; // State for damping
@@ -214,23 +188,23 @@ namespace Cinemachine
         /// <summary>For editor visulaization of the calculated bounding box of the group</summary>
         public Bounds m_LastBounds { get; private set; }
 
-        /// <summary>For editor visualization of the calculated bounding box of the group</summary>
+        /// <summary>For editor visulaization of the calculated bounding box of the group</summary>
         public Matrix4x4 m_lastBoundsMatrix { get; private set; }
 
         float GetTargetHeight(Bounds b)
         {
-            float framingSize = Mathf.Max(Epsilon, m_GroupFramingSize);
+            float framingSize = Mathf.Max(UnityVectorExtensions.Epsilon, m_GroupFramingSize);
             switch (m_FramingMode)
             {
                 case FramingMode.Horizontal:
-                    return Mathf.Max(Epsilon, b.size.x )/ (framingSize * VcamState.Lens.Aspect);
+                    return b.size.x / (framingSize * VirtualCamera.State.Lens.Aspect);
                 case FramingMode.Vertical:
-                    return Mathf.Max(Epsilon, b.size.y) / framingSize;
+                    return b.size.y / framingSize;
                 default:
                 case FramingMode.HorizontalAndVertical:
                     return Mathf.Max(
-                        Mathf.Max(Epsilon, b.size.x) / (framingSize * VcamState.Lens.Aspect), 
-                        Mathf.Max(Epsilon, b.size.y) / framingSize);
+                        b.size.x / (framingSize * VirtualCamera.State.Lens.Aspect), 
+                        b.size.y / framingSize);
             }
         }
     }

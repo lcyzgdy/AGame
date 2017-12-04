@@ -8,7 +8,6 @@ namespace Cinemachine.Timeline
         // The brain that this track controls
         private CinemachineBrain mBrain;
         private int mBrainOverrideId = -1;
-        private bool mPlaying;
 
         public override void OnGraphStop(Playable playable)
         {
@@ -40,45 +39,30 @@ namespace Cinemachine.Timeline
             float camWeight = 1f;
             for (int i = 0; i < playable.GetInputCount(); ++i)
             {
-                CinemachineShotPlayable shot
+                CinemachineShotPlayable cam
                     = ((ScriptPlayable<CinemachineShotPlayable>)playable.GetInput(i)).GetBehaviour();
                 float weight = playable.GetInputWeight(i);
-                if (shot != null && shot.VirtualCamera != null
+                if (cam != null && cam.VirtualCamera != null
                     && playable.GetPlayState() == PlayState.Playing
                     && weight > 0.0001f)
                 {
                     if (activeInputs == 1)
                         camB = camA;
                     camWeight = weight;
-                    camA = shot.VirtualCamera;
+                    camA = cam.VirtualCamera;
                     ++activeInputs;
                     if (activeInputs == 2)
                         break;
                 }
             }
 
-            float deltaTime = info.deltaTime;
-            if (!mPlaying)
-            {
-                if (mBrainOverrideId < 0)
-                    mLastOverrideFrame = -1;
-                float time = Time.realtimeSinceStartup;
-                deltaTime = Time.unscaledDeltaTime;
-                if (!Application.isPlaying && (mLastOverrideFrame < 0 || time - mLastOverrideFrame > Time.maximumDeltaTime))
-                    deltaTime = -1;
-                mLastOverrideFrame = time;
-            }
-
-            // Override the Cinemachine brain with our results
+            // Override the Cinemachine brain with our results.
+            // This is a simulation, so we need a fixed delta time.
+            float deltaTime = Time.fixedDeltaTime;
+            if (info.evaluationType != FrameData.EvaluationType.Playback)
+                deltaTime = 0;
             mBrainOverrideId = mBrain.SetCameraOverride(
                     mBrainOverrideId, camB, camA, camWeight, deltaTime);
-
-        }
-        float mLastOverrideFrame;
-
-        public override void PrepareFrame(Playable playable, FrameData info)
-        {
-            mPlaying = info.evaluationType == FrameData.EvaluationType.Playback;
         }
     }
 }

@@ -25,22 +25,6 @@ namespace Cinemachine.Utility
         }
 
         /// <summary>
-        /// Get the closest point on a line segment.
-        /// </summary>
-        /// <param name="p">A point in space</param>
-        /// <param name="s0">Start of line segment</param>
-        /// <param name="s1">End of line segment</param>
-        /// <returns>The interpolation parameter representing the point on the segment, with 0==s0, and 1==s1</returns>
-        public static float ClosestPointOnSegment(this Vector2 p, Vector2 s0, Vector2 s1)
-        {
-            Vector2 s = s1 - s0;
-            float len2 = Vector2.SqrMagnitude(s);
-            if (len2 < Epsilon)
-                return 0; // degenrate segment
-            return Mathf.Clamp01(Vector2.Dot(p - s0, s) / len2);
-        }
-
-        /// <summary>
         /// Returns a non-normalized projection of the supplied vector onto a plane
         /// as described by its normal
         /// </summary>
@@ -57,7 +41,7 @@ namespace Cinemachine.Utility
         /// <returns>True if the square magnitude of the vector is within Epsilon of zero</returns>
         public static bool AlmostZero(this Vector3 v)
         {
-            return v.sqrMagnitude < (Epsilon * Epsilon);
+            return v.sqrMagnitude < Epsilon;
         }
 
         /// <summary>Get a signed angle between two vectors</summary>
@@ -70,13 +54,8 @@ namespace Cinemachine.Utility
         /// <returns>The signed angle between the vectors</returns>
         public static float SignedAngle(Vector3 from, Vector3 to, Vector3 refNormal)
         {
-            from.Normalize();
-            to.Normalize();
-            float dot = Vector3.Dot(Vector3.Cross(from, to), refNormal);
-            if (Mathf.Abs(dot) < -Epsilon)
-                return Vector3.Dot(from, to) < 0 ? 180 : 0;
             float angle = Vector3.Angle(from, to);
-            if (dot < 0)
+            if (Vector3.Dot(Vector3.Cross(from, to), refNormal) < 0)
                 return -angle;
             return angle;
         }
@@ -152,25 +131,25 @@ namespace Cinemachine.Utility
         /// This formulation makes it easy to interpolate without introducing spurious roll.
         /// </summary>
         /// <param name="orient"></param>
-        /// <param name="lookAtDir">The worldspace target direction in which we want to look</param>
+        /// <param name="lookAt">The target we want to look at</param>
         /// <param name="worldUp">Which way is up</param>
         /// <returns>Vector2.y is rotation about worldUp, and Vector2.x is second rotation,
         /// about local right.</returns>
         public static Vector2 GetCameraRotationToTarget(
-            this Quaternion orient, Vector3 lookAtDir, Vector3 worldUp)
+            this Quaternion orient, Vector3 lookAt, Vector3 worldUp)
         {
-            if (lookAtDir.AlmostZero())
+            if (lookAt.AlmostZero())
                 return Vector2.zero;  // degenerate
 
             // Work in local space
             Quaternion toLocal = Quaternion.Inverse(orient);
             Vector3 up = toLocal * worldUp;
-            lookAtDir = toLocal * lookAtDir;
+            lookAt = toLocal * lookAt;
 
             // Align yaw based on world up
             float angleH = 0;
             {
-                Vector3 targetDirH = lookAtDir.ProjectOntoPlane(up);
+                Vector3 targetDirH = lookAt.ProjectOntoPlane(up);
                 if (!targetDirH.AlmostZero())
                 {
                     Vector3 currentDirH = Vector3.forward.ProjectOntoPlane(up);
@@ -189,7 +168,7 @@ namespace Cinemachine.Utility
 
             // Get local vertical angle
             float angleV = UnityVectorExtensions.SignedAngle(
-                    q * Vector3.forward, lookAtDir, q * Vector3.right);
+                    q * Vector3.forward, lookAt, q * Vector3.right);
 
             return new Vector2(angleV, angleH);
         }

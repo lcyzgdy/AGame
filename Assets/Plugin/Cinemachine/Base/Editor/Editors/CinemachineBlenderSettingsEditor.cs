@@ -6,8 +6,11 @@ using System.Collections.Generic;
 namespace Cinemachine.Editor
 {
     [CustomEditor(typeof(CinemachineBlenderSettings))]
-    internal sealed class CinemachineBlenderSettingsEditor : BaseEditor<CinemachineBlenderSettings>
+    internal sealed class CinemachineBlenderSettingsEditor : UnityEditor.Editor
     {
+        private CinemachineBlenderSettings Target { get { return target as CinemachineBlenderSettings; } }
+        private static string[] m_excludeFields = null;
+
         private ReorderableList mBlendList;
 
         /// <summary>
@@ -18,23 +21,25 @@ namespace Cinemachine.Editor
         public GetAllVirtualCamerasDelegate GetAllVirtualCameras;
         public delegate CinemachineVirtualCameraBase[] GetAllVirtualCamerasDelegate();
 
-        protected override List<string> GetExcludedPropertiesInInspector()
-        {
-            List<string> excluded = base.GetExcludedPropertiesInInspector();
-            excluded.Add(FieldPath(x => x.m_CustomBlends));
-            return excluded;
-        }
-
         public override void OnInspectorGUI()
         {
-            BeginInspector();
+            if (m_excludeFields == null)
+            {
+                m_excludeFields = new string[]
+                {
+                    "m_Script",
+                    SerializedPropertyHelper.PropertyName(() => Target.m_CustomBlends)
+                };
+            }
             if (mBlendList == null)
                 SetupBlendList();
 
-            DrawRemainingPropertiesInInspector();
+            serializedObject.Update();
+            DrawPropertiesExcluding(serializedObject, m_excludeFields);
 
             UpdateCameraCandidates();
             mBlendList.DoLayoutList();
+
             serializedObject.ApplyModifiedProperties();
         }
 

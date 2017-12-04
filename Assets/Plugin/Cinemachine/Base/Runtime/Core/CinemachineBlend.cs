@@ -10,15 +10,15 @@ namespace Cinemachine
     public class CinemachineBlend
     {
         /// <summary>First camera in the blend</summary>
-        public ICinemachineCamera CamA { get; set; }
+        public ICinemachineCamera CamA { get; private set; }
 
         /// <summary>Second camera in the blend</summary>
-        public ICinemachineCamera CamB { get; set; }
+        public ICinemachineCamera CamB { get; private set; }
 
         /// <summary>The curve that describes the way the blend transitions over time
         /// from the first camera to the second.  X-axis is time in seconds over which
         /// the blend takes place and Y axis is blend weight (0..1)</summary>
-        public AnimationCurve BlendCurve { get; set; }
+        public AnimationCurve BlendCurve { get; private set; }
 
         /// <summary>The current time relative to the start of the blend</summary>
         public float TimeInBlend { get; set; }
@@ -27,19 +27,25 @@ namespace Cinemachine
         /// BlendCurve at the current time relative to the start of the blend.
         /// 0 means camA, 1 means camB.</summary>
         public float BlendWeight
-        { 
-            get { return BlendCurve != null ? BlendCurve.Evaluate(TimeInBlend) : 0; } 
-        }
+        { get { return BlendCurve != null ? BlendCurve.Evaluate(TimeInBlend) : 0; } }
 
-        /// <summary>Validity test for the blend.  True if both cameras are defined.</summary>
+        /// <summary>Validity test for the blend.  True if both cameras are defined,
+        /// and there is a nontrivial blend curve.</summary>
         public bool IsValid
         {
-            get { return (CamA != null || CamB != null); }
+            get
+            {
+                return (CamA != null || CamB != null)
+                    && BlendCurve != null && BlendCurve.keys.Length > 1;
+            }
         }
 
         /// <summary>Duration in seconds of the blend.
         /// This is given read from the BlendCurve.</summary>
-        public float Duration { get; set; }
+        public float Duration
+        {
+            get { return IsValid ? BlendCurve.keys[BlendCurve.keys.Length - 1].time : 0; }
+        }
 
         /// <summary>True if the time relative to the start of the blend is greater
         /// than or equal to the blend duration</summary>
@@ -50,8 +56,8 @@ namespace Cinemachine
         {
             get
             {
-                string fromName = (CamA != null) ? "[" + CamA.Name + "]": "(none)";
-                string toName = (CamB != null) ? "[" + CamB.Name + "]" : "(none)";
+                string fromName = (CamA != null) ? CamA.Name : "(none)";
+                string toName = (CamB != null) ? CamB.Name : "(none)";
                 int percent = (int)(BlendWeight * 100f);
                 return string.Format("{0} {1}% from {2}", toName, percent, fromName);
             }
@@ -79,7 +85,7 @@ namespace Cinemachine
         /// <param name="curve">Blend curve</param>
         /// <param name="t">Current time in blend, relative to the start of the blend</param>
         public CinemachineBlend(
-            ICinemachineCamera a, ICinemachineCamera b, AnimationCurve curve, float duration, float t)
+            ICinemachineCamera a, ICinemachineCamera b, AnimationCurve curve, float t)
         {
             if (a == null || b == null)
                 throw new ArgumentException("Blend cameras cannot be null");
@@ -87,7 +93,6 @@ namespace Cinemachine
             CamB = b;
             BlendCurve = curve;
             TimeInBlend = t;
-            Duration = duration;
         }
 
         /// <summary>Make sure the source cameras get updated.</summary>
@@ -96,7 +101,7 @@ namespace Cinemachine
         public void UpdateCameraState(Vector3 worldUp, float deltaTime)
         {
             // Make sure both cameras have been updated (they are not necessarily
-            // enabled, and only enabled cameras get updated automatically
+            // enabled, and only enabled top-level cameras get updated automatically
             // every frame)
             CinemachineCore.Instance.UpdateVirtualCamera(CamA, worldUp, deltaTime);
             CinemachineCore.Instance.UpdateVirtualCamera(CamB, worldUp, deltaTime);
@@ -137,7 +142,7 @@ namespace Cinemachine
         public Style m_Style;
 
         /// <summary>The duration (in seconds) of the blend</summary>
-        [Tooltip("Duration of the blend, in seconds")]
+        [Tooltip("Duration (in seconds) of the blend")]
         public float m_Time;
 
         /// <summary>Constructor</summary>

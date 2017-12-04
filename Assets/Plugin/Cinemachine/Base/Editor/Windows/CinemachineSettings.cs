@@ -9,22 +9,18 @@ namespace Cinemachine.Editor
     {
         public static class CinemachineCoreSettings
         {
-            private static readonly string hShowInGameGuidesKey = "CNMCN_Core_ShowInGameGuides";
-            public static bool ShowInGameGuides
+            private static readonly string kCoreActiveGizmoColourKey = "CNMCN_Core_Active_Gizmo_Colour";
+            private static readonly string kCoreInactiveGizmoColourKey = "CNMCN_Core_Inactive_Gizmo_Colour";
+
+            public static readonly Color kDefaultActiveColour = new Color32(255, 0, 0, 100);
+            public static readonly Color kDefaultInactiveColour = new Color32(9, 54, 87, 100);
+
+            public static bool ShowHiddenObjects
             {
-                get { return EditorPrefs.GetBool(hShowInGameGuidesKey, true); }
-                set 
-                { 
-                    if (ShowInGameGuides != value)
-                    {
-                        EditorPrefs.SetBool(hShowInGameGuidesKey, value); 
-                        UnityEditorInternal.InternalEditorUtility.RepaintAllViews();
-                    }
-                }
+                get { return CinemachineCore.sShowHiddenObjects; }
+                set { CinemachineCore.sShowHiddenObjects  = value; }
             }
 
-            private static readonly string kCoreActiveGizmoColourKey = "CNMCN_Core_Active_Gizmo_Colour";
-            public static readonly Color kDefaultActiveColour = new Color32(255, 0, 0, 100);
             public static Color ActiveGizmoColour
             {
                 get
@@ -43,8 +39,6 @@ namespace Cinemachine.Editor
                 }
             }
 
-            private static readonly string kCoreInactiveGizmoColourKey = "CNMCN_Core_Inactive_Gizmo_Colour";
-            public static readonly Color kDefaultInactiveColour = new Color32(9, 54, 87, 100);
             public static Color InactiveGizmoColour
             {
                 get
@@ -234,7 +228,7 @@ namespace Cinemachine.Editor
         private static readonly GUIContent sComposerTargetOverlay = new GUIContent("Composer Target", "The colour of the composer overlay's target");
         private static readonly GUIContent sComposerTargetOverlayPixels = new GUIContent("Composer Target Size(px)", "The size of the composer overlay's target box in pixels");
 
-        private const string kCinemachineHeaderPath = "cinemachine_header.tif";
+        private const string kCinemachineHeaderPath = "cinemachine_header.png";
         private const string kCinemachineDocURL = @"http://www.cinemachineimagery.com/documentation/";
 
         private static Vector2 sScrollPosition = Vector2.zero;
@@ -258,8 +252,8 @@ namespace Cinemachine.Editor
 
             sScrollPosition = GUILayout.BeginScrollView(sScrollPosition);
 
-            //CinemachineCore.sShowHiddenObjects
-            //    = EditorGUILayout.Toggle("Show Hidden Objects", CinemachineCore.sShowHiddenObjects);
+            //CinemachineCoreSettings.ShowHiddenObjects
+            //    = EditorGUILayout.Toggle(sCoreShowHiddenObjectsToggle, CinemachineCoreSettings.ShowHiddenObjects);
 
             ShowCoreSettings = EditorGUILayout.Foldout(ShowCoreSettings, "Runtime Settings");
             if (ShowCoreSettings)

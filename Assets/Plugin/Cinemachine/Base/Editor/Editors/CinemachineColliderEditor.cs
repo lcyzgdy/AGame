@@ -1,40 +1,23 @@
 using UnityEngine;
 using UnityEditor;
-using System.Collections.Generic;
 
 namespace Cinemachine.Editor
 {
     [CustomEditor(typeof(CinemachineCollider))]
-    public sealed class CinemachineColliderEditor : BaseEditor<CinemachineCollider>
+    public sealed class CinemachineColliderEditor : UnityEditor.Editor
     {
-        protected override List<string> GetExcludedPropertiesInInspector()
-        {
-            List<string> excluded = base.GetExcludedPropertiesInInspector();
-            if (!Target.m_AvoidObstacles)
-            {
-                excluded.Add(FieldPath(x => x.m_DistanceLimit));
-                excluded.Add(FieldPath(x => x.m_CameraRadius));
-                excluded.Add(FieldPath(x => x.m_Strategy));
-                excluded.Add(FieldPath(x => x.m_MaximumEffort));
-                excluded.Add(FieldPath(x => x.m_Damping));
-            }
-            else if (Target.m_Strategy == CinemachineCollider.ResolutionStrategy.PullCameraForward)
-            {
-                excluded.Add(FieldPath(x => x.m_MaximumEffort));
-            }
-            return excluded;
-        }
+        private CinemachineCollider Target { get { return target as CinemachineCollider; } }
+        private static readonly string[] m_excludeFields = new string[] { "m_Script" };
 
         public override void OnInspectorGUI()
         {
-            BeginInspector();
-
-            if (Target.m_AvoidObstacles && !Target.VirtualCamera.State.HasLookAt)
-                EditorGUILayout.HelpBox(
-                    "Preserve Line Of Sight requires a LookAt target.", 
-                    MessageType.Warning);
-
-            DrawRemainingPropertiesInInspector();
+            serializedObject.Update();
+            EditorGUI.BeginChangeCheck();
+            DrawPropertiesExcluding(serializedObject, m_excludeFields);
+            if (EditorGUI.EndChangeCheck())
+            {
+                serializedObject.ApplyModifiedProperties();
+            }
         }
 
         [DrawGizmo(GizmoType.Active | GizmoType.Selected, typeof(CinemachineCollider))]
@@ -44,29 +27,30 @@ namespace Cinemachine.Editor
             if (vcam != null && collider.enabled)
             {
                 Color oldColor = Gizmos.color;
+                bool isLive = CinemachineCore.Instance.IsLive(vcam);
+                Color feelerColor = isLive
+                    ? CinemachineSettings.CinemachineCoreSettings.ActiveGizmoColour
+                    : CinemachineSettings.CinemachineCoreSettings.InactiveGizmoColour;
+                Color hitColour = isLive ? Color.white : Color.grey;
+
                 Vector3 pos = vcam.State.FinalPosition;
-                if (collider.m_AvoidObstacles && vcam.State.HasLookAt)
+                if (collider.m_PreserveLineOfSight && vcam.State.HasLookAt)
                 {
-                    Gizmos.color = CinemachineColliderPrefs.FeelerColor;
-                    if (collider.m_CameraRadius > 0)
-                        Gizmos.DrawWireSphere(pos, collider.m_CameraRadius);
-
                     Vector3 forwardFeelerVector = (vcam.State.ReferenceLookAt - pos).normalized;
-                    float distance = collider.m_DistanceLimit;
+                    float distance = collider.m_LineOfSightFeelerDistance;
+                    Gizmos.color = collider.IsTargetObscured(vcam.LiveChildOrSelf) ? hitColour : feelerColor;
                     Gizmos.DrawLine(pos, pos + forwardFeelerVector * distance);
+                }
 
-                    // Show the avoidance path, for debugging
-                    List<List<Vector3>> debugPaths = collider.DebugPaths;
-                    foreach (var path in debugPaths)
+                if (collider.m_UseCurbFeelers)
+                {
+                    Quaternion orientation = vcam.State.FinalOrientation;
+                    var feelers = collider.GetFeelers(vcam.LiveChildOrSelf);
+                    foreach (CinemachineCollider.CompiledCurbFeeler feeler in feelers)
                     {
-                        Gizmos.color = CinemachineColliderPrefs.FeelerHitColor;
-                        Vector3 p0 = vcam.State.ReferenceLookAt;
-                        foreach (var p in path)
-                        {
-                            Gizmos.DrawLine(p0, p);
-                            p0 = p;
-                        }
-                        Gizmos.DrawLine(p0, pos);
+                        Vector3 worldDirection = orientation * feeler.LocalVector;
+                        Gizmos.color = feeler.IsHit ? hitColour : feelerColor;
+                        Gizmos.DrawLine(pos, pos + worldDirection * feeler.RayDistance);
                     }
                 }
                 Gizmos.color = oldColor;

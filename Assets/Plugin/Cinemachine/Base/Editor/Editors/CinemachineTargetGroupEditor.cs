@@ -5,16 +5,12 @@ using System.Collections.Generic;
 namespace Cinemachine.Editor
 {
     [CustomEditor(typeof(CinemachineTargetGroup))]
-    internal sealed class CinemachineTargetGroupEditor : BaseEditor<CinemachineTargetGroup>
+    internal sealed class CinemachineTargetGroupEditor : UnityEditor.Editor
     {
-        private UnityEditorInternal.ReorderableList mTargetList;
+        private CinemachineTargetGroup Target { get { return target as CinemachineTargetGroup; } }
+        private static readonly string[] m_excludeFields = new string[] { "m_Script", "m_Targets" };
 
-        protected override List<string> GetExcludedPropertiesInInspector()
-        {
-            List<string> excluded = base.GetExcludedPropertiesInInspector();
-            excluded.Add(FieldPath(x => x.m_Targets));
-            return excluded;
-        }
+        private UnityEditorInternal.ReorderableList mTargetList;
 
         void OnEnable()
         {
@@ -23,8 +19,9 @@ namespace Cinemachine.Editor
 
         public override void OnInspectorGUI()
         {
-            BeginInspector();
-            DrawRemainingPropertiesInInspector();
+            serializedObject.Update();
+            DrawPropertiesExcluding(serializedObject, m_excludeFields);
+            serializedObject.ApplyModifiedProperties();
 
             if (mTargetList == null)
                 SetupTargetList();
@@ -37,11 +34,11 @@ namespace Cinemachine.Editor
         void SetupTargetList()
         {
             float vSpace = 2;
+            float hSpace = 3;
             float floatFieldWidth = EditorGUIUtility.singleLineHeight * 3f;
-            float hBigSpace = EditorGUIUtility.singleLineHeight * 2 / 3;
 
-            mTargetList = new UnityEditorInternal.ReorderableList(
-                    serializedObject, FindProperty(x => x.m_Targets),
+            mTargetList = new UnityEditorInternal.ReorderableList(serializedObject,
+                    serializedObject.FindProperty(() => Target.m_Targets),
                     true, true, true, true);
 
             // Needed for accessing field names as strings
@@ -49,15 +46,16 @@ namespace Cinemachine.Editor
 
             mTargetList.drawHeaderCallback = (Rect rect) =>
                 {
-                    rect.width -= EditorGUIUtility.singleLineHeight + 2 * (floatFieldWidth + hBigSpace);
+                    rect.width -= (EditorGUIUtility.singleLineHeight + 2 * hSpace);
+                    rect.width -= 2 * floatFieldWidth;
                     Vector2 pos = rect.position; pos.x += EditorGUIUtility.singleLineHeight;
                     rect.position = pos;
                     EditorGUI.LabelField(rect, "Target");
 
-                    pos.x += rect.width + hBigSpace; rect.width = floatFieldWidth; rect.position = pos;
+                    pos.x += rect.width + hSpace; rect.width = floatFieldWidth; rect.position = pos;
                     EditorGUI.LabelField(rect, "Weight");
 
-                    pos.x += rect.width + hBigSpace; rect.position = pos;
+                    pos.x += rect.width + hSpace; rect.position = pos;
                     EditorGUI.LabelField(rect, "Radius");
                 };
 
@@ -69,17 +67,15 @@ namespace Cinemachine.Editor
                     rect.y += vSpace;
                     rect.height = EditorGUIUtility.singleLineHeight;
                     Vector2 pos = rect.position;
-                    //rect.width -= hSpace + 2 * EditorGUIUtility.singleLineHeight;
-                    rect.width -= 2 * (floatFieldWidth + hBigSpace);
+                    rect.width -= 3 * hSpace;
+                    rect.width -= 2 * floatFieldWidth;
                     EditorGUI.PropertyField(rect, elemProp.FindPropertyRelative(() => def.target), GUIContent.none);
 
-                    float oldWidth = EditorGUIUtility.labelWidth;
-                    EditorGUIUtility.labelWidth = EditorGUIUtility.singleLineHeight; 
-                    pos.x += rect.width; rect.width = floatFieldWidth + hBigSpace; rect.position = pos;
-                    EditorGUI.PropertyField(rect, elemProp.FindPropertyRelative(() => def.weight), new GUIContent(" "));
-                    pos.x += rect.width; rect.position = pos;
-                    EditorGUI.PropertyField(rect, elemProp.FindPropertyRelative(() => def.radius), new GUIContent(" "));
-                    EditorGUIUtility.labelWidth = oldWidth; 
+                    pos.x += rect.width + hSpace; rect.width = floatFieldWidth; rect.position = pos;
+                    EditorGUI.PropertyField(rect, elemProp.FindPropertyRelative(() => def.weight), GUIContent.none);
+
+                    pos.x += rect.width + hSpace; rect.position = pos;
+                    EditorGUI.PropertyField(rect, elemProp.FindPropertyRelative(() => def.radius), GUIContent.none);
                 };
 
             mTargetList.onAddCallback = (UnityEditorInternal.ReorderableList l) =>

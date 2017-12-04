@@ -19,9 +19,7 @@ namespace Cinemachine.Utility
             int kernelRadius = Math.Min(maxKernelRadius, Mathf.FloorToInt(Mathf.Abs(sigma) * 2.5f));
             mKernel = new float[2 * kernelRadius + 1];
             mKernelSum = 0;
-            if (kernelRadius == 0)
-                mKernelSum = mKernel[0] = 1;
-            else for (int i = -kernelRadius; i <= kernelRadius; ++i)
+            for (int i = -kernelRadius; i <= kernelRadius; ++i)
             {
                 mKernel[i + kernelRadius]
                     = (float)(Math.Exp(-(i * i) / (2 * sigma * sigma)) / Math.Sqrt(2.0 * Math.PI * sigma));
@@ -30,42 +28,31 @@ namespace Cinemachine.Utility
             Sigma = sigma;
         }
 
-        protected abstract T Compute(int windowPos);
-
         public GaussianWindow1d(float sigma, int maxKernelRadius = 10)
         {
             GenerateKernel(sigma, maxKernelRadius);
             mCurrentPos = 0;
         }
 
-        public void Reset() { mData = null; }
-
-        public bool IsEmpty() { return mData == null; }
-
-        public void AddValue(T v)
+        public T Filter(T v)
         {
+            if (KernelSize < 3)
+                return v;
             if (mData == null)
             {
                 mData = new T[KernelSize];
                 for (int i = 0; i < KernelSize; ++i)
                     mData[i] = v;
-                mCurrentPos = Mathf.Min(1, KernelSize-1);
+                mCurrentPos = 1;
+                return v;
             }
             mData[mCurrentPos] = v;
             if (++mCurrentPos == KernelSize)
                 mCurrentPos = 0;
+            return Compute(mCurrentPos);    // Returned value will be kernelRadius old
         }
 
-        public T Filter(T v)
-        {
-            if (KernelSize < 3)
-                return v;
-            AddValue(v);
-            return Value();    
-        }
-
-        /// Returned value will be kernelRadius old
-        public T Value() { return Compute(mCurrentPos); }
+        protected abstract T Compute(int windowPos);
     }
 
     internal class GaussianWindow1D_Vector3 : GaussianWindow1d<Vector3>

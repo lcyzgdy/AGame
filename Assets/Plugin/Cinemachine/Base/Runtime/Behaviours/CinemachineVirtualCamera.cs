@@ -62,7 +62,6 @@ namespace Cinemachine
         /// settings that are provided to it.
         /// If this is null, then the vcam's Transform orientation will be used.</summary>
         [Tooltip("The object that the camera wants to look at (the Aim target).  If this is null, then the vcam's Transform orientation will define the camera's orientation.")]
-        [NoSaveDuringPlay]
         public Transform m_LookAt = null;
 
         /// <summary>The object that the camera wants to move with (the Body target).
@@ -71,7 +70,6 @@ namespace Cinemachine
         /// settings that are provided to it.
         /// If this is null, then the vcam's Transform position will be used.</summary>
         [Tooltip("The object that the camera wants to move with (the Body target).  If this is null, then the vcam's Transform position will define the camera's position.")]
-        [NoSaveDuringPlay]
         public Transform m_Follow = null;
 
         /// <summary>Specifies the LensSettings of this Virtual Camera.
@@ -99,7 +97,12 @@ namespace Cinemachine
         override public Transform LookAt
         {
             get { return ResolveLookAt(m_LookAt); }
-            set { m_LookAt = value; }
+            set
+            {
+                if (m_LookAt != value)
+                    PreviousStateInvalid = true;
+                m_LookAt = value;
+            }
         }
 
         /// <summary>Get the Follow target for the Body component in the CinemachinePipeline.
@@ -108,7 +111,12 @@ namespace Cinemachine
         override public Transform Follow
         {
             get { return ResolveFollow(m_Follow); }
-            set { m_Follow = value; }
+            set
+            {
+                if (m_Follow != value)
+                    PreviousStateInvalid = true;
+                m_Follow = value;
+            }
         }
 
         /// <summary>Called by CinemachineCore at LateUpdate time
@@ -116,28 +124,28 @@ namespace Cinemachine
         /// invoke its pipeline and generate a CameraState for this frame.</summary>
         override public void UpdateCameraState(Vector3 worldUp, float deltaTime)
         {
-            //UnityEngine.Profiling.Profiler.BeginSample("CinemachineVirtualCamera.UpdateCameraState");
-            if (!PreviousStateIsValid)
+            if (PreviousStateInvalid)
                 deltaTime = -1;
+            PreviousStateInvalid = false;
 
             // Reset the base camera state, in case the game object got moved in the editor
-            if (deltaTime < 0)
-                m_State = PullStateFromVirtualCamera(worldUp); // not in gameplay
+            if (deltaTime <= 0)
+                m_State = m_PreviousState = PullStateFromVirtualCamera(worldUp); // not in gameplay
 
             // Update the state by invoking the component pipeline
             m_State = CalculateNewState(worldUp, deltaTime);
 
+            // Save this state for use as a "from" state next frame
+            m_PreviousState = State;
+
             // Push the raw position back to the game object's transform, so it
             // moves along with the camera.
-            if (!UserIsDragging)
-            {
-                if (Follow != null)
-                    transform.position = State.RawPosition;
-                if (LookAt != null)
-                    transform.rotation = State.RawOrientation;
-            }
-            PreviousStateIsValid = true;
-            //UnityEngine.Profiling.Profiler.EndSample();
+            transform.position = State.RawPosition;
+
+            // Leave the orientation alone when dragging, because it can
+            // screw up position dragging local axes
+            if (!SuppressOrientationUpdate)
+                transform.rotation = State.RawOrientation;
         }
 
         /// <summary>Make sure that the pipeline cache is up-to-date.</summary>
@@ -145,27 +153,22 @@ namespace Cinemachine
         {
             base.OnEnable();
             InvalidateComponentPipeline();
-
-            // Can't add components during OnValidate
-            if (ValidatingStreamVersion < 20170927)
-            {
-                if (Follow != null && GetCinemachineComponent(CinemachineCore.Stage.Body) == null)
-                    AddCinemachineComponent<CinemachineHardLockToTarget>();
-                if (LookAt != null && GetCinemachineComponent(CinemachineCore.Stage.Aim) == null)
-                    AddCinemachineComponent<CinemachineHardLookAt>();
-            }
+            CinemachineBrain brain = CinemachineCore.Instance.FindPotentialTargetBrain(this);
+            UpdateCameraState((brain != null) ? brain.DefaultWorldUp : Vector3.up, -1); // Snap to center
         }
 
         /// <summary>Calls the DestroyPipelineDelegate for destroying the hidden
         /// child object, to support undo.</summary>
         protected override void OnDestroy()
         {
-            // Make the pipeline visible instead of destroying - this is to keep Undo happy
-            foreach (Transform child in transform)
-                if (child.GetComponent<CinemachinePipeline>() != null)
-                    child.gameObject.hideFlags
-                        &= ~(HideFlags.HideInHierarchy | HideFlags.HideInInspector);
-
+            if (m_ComponentOwner != null)
+            {
+                if (DestroyPipelineOverride != null)
+                    DestroyPipelineOverride(m_ComponentOwner.gameObject);
+                else
+                    DestroyImmediate(m_ComponentOwner.gameObject);
+                m_ComponentOwner = null;
+            }
             base.OnDestroy();
         }
 
@@ -173,7 +176,8 @@ namespace Cinemachine
         protected override void OnValidate()
         {
             base.OnValidate();
-            m_Lens.Validate();
+            m_Lens.NearClipPlane = Mathf.Max(m_Lens.NearClipPlane, 0.01f);
+            m_Lens.FarClipPlane = Mathf.Max(m_Lens.FarClipPlane, m_Lens.NearClipPlane + 0.01f);
         }
 
         void OnTransformChildrenChanged()
@@ -183,7 +187,7 @@ namespace Cinemachine
 
         void Reset()
         {
-            DestroyPipeline();
+            CreatePipeline(null);
         }
 
         /// <summary>
@@ -200,7 +204,7 @@ namespace Cinemachine
         /// the CinemachineVirtualCamera class.
         /// </summary>
         public delegate Transform CreatePipelineDelegate(
-            CinemachineVirtualCamera vcam, string name, CinemachineComponentBase[] copyFrom);
+            CinemachineVirtualCamera vcam, string name, ICinemachineComponent[] copyFrom);
 
         /// <summary>
         /// Override component pipeline destruction.
@@ -214,52 +218,43 @@ namespace Cinemachine
         /// </summary>
         public delegate void DestroyPipelineDelegate(GameObject pipeline);
 
-        /// <summary>Destroy any existing pipeline container.</summary>
-        private void DestroyPipeline()
-        {
-            List<Transform> oldPipeline = new List<Transform>();
-            foreach (Transform child in transform)
-                if (child.GetComponent<CinemachinePipeline>() != null)
-                    oldPipeline.Add(child);
-            
-            foreach (Transform child in oldPipeline)
-            {
-                if (DestroyPipelineOverride != null)
-                    DestroyPipelineOverride(child.gameObject);
-                else
-                    Destroy(child.gameObject);
-            }
-            m_ComponentOwner = null;
-            PreviousStateIsValid = false;
-        }
-
-        /// <summary>Create a default pipeline container.</summary>
+        /// <summary>
+        /// Create a default pipeline container.
+        /// </summary>
         private Transform CreatePipeline(CinemachineVirtualCamera copyFrom)
         {
-            CinemachineComponentBase[] components = null;
+            ICinemachineComponent[] components = null;
             if (copyFrom != null)
             {
                 copyFrom.InvalidateComponentPipeline(); // make sure it's up to date
                 components = copyFrom.GetComponentPipeline();
             }
 
-            Transform newPipeline = null;
+            // Do the same thing with undo-support
             if (CreatePipelineOverride != null)
-                newPipeline = CreatePipelineOverride(this, PipelineName, components);
+                m_ComponentOwner = CreatePipelineOverride(this, PipelineName, components);
             else
             {
+                // Delete all existing pipeline childen
+                List<Transform> list = new List<Transform>();
+                foreach (Transform child in transform)
+                    if (child.GetComponent<CinemachinePipeline>() != null)
+                        list.Add(child);
+                foreach (Transform child in list)
+                    DestroyImmediate(child.gameObject);
+
+                // Create a new pipeline
                 GameObject go =  new GameObject(PipelineName);
                 go.transform.parent = transform;
                 go.AddComponent<CinemachinePipeline>();
-                newPipeline = go.transform;
+                m_ComponentOwner = go.transform;
 
                 // If copying, transfer the components
                 if (components != null)
                     foreach (Component c in components)
                         ReflectionHelpers.CopyFields(c, go.AddComponent(c.GetType()));
             }
-            PreviousStateIsValid = false;
-            return newPipeline;
+            return m_ComponentOwner;
         }
 
         /// <summary>
@@ -273,25 +268,12 @@ namespace Cinemachine
 
         /// <summary>Get the component pipeline owned by the hidden child pipline container.
         /// For most purposes, it is preferable to use the GetCinemachineComponent method.</summary>
-        public CinemachineComponentBase[] GetComponentPipeline() { UpdateComponentPipeline(); return m_ComponentPipeline; }
+        public ICinemachineComponent[] GetComponentPipeline() { UpdateComponentPipeline(); return m_ComponentPipeline; }
 
-        /// <summary>Get the component set for a specific stage.</summary>
-        /// <param name="stage">The stage for which we want the component</param>
-        /// <returns>The Cinemachine component for that stage, or null if not defined</returns>
-        public CinemachineComponentBase GetCinemachineComponent(CinemachineCore.Stage stage)
+        /// <summary>Get an existing component from the cinemachine pipeline.</summary>
+        public T GetCinemachineComponent<T>() where T : MonoBehaviour
         {
-            CinemachineComponentBase[] components = GetComponentPipeline();
-            if (components != null)
-                foreach (var c in components)
-                    if (c.Stage == stage)
-                        return c;
-            return null;
-        }
-
-        /// <summary>Get an existing component of a specific type from the cinemachine pipeline.</summary>
-        public T GetCinemachineComponent<T>() where T : CinemachineComponentBase
-        {
-            CinemachineComponentBase[] components = GetComponentPipeline();
+            ICinemachineComponent[] components = GetComponentPipeline();
             if (components != null)
                 foreach (var c in components)
                     if (c is T)
@@ -300,13 +282,14 @@ namespace Cinemachine
         }
 
         /// <summary>Add a component to the cinemachine pipeline.</summary>
-        public T AddCinemachineComponent<T>() where T : CinemachineComponentBase
+        public T AddCinemachineComponent<T>() where T : MonoBehaviour
         {
             // Get the existing components
             Transform owner = GetComponentOwner();
-            CinemachineComponentBase[] components = owner.GetComponents<CinemachineComponentBase>();
+            ICinemachineComponent[] components = owner.GetComponents<ICinemachineComponent>();
 
-            T component = owner.gameObject.AddComponent<T>();
+            T behaviour = owner.gameObject.AddComponent<T>();
+            ICinemachineComponent component = (ICinemachineComponent)behaviour;
             if (component != null && components != null)
             {
                 // Remove the existing components at that stage
@@ -315,27 +298,26 @@ namespace Cinemachine
                 {
                     if (components[i].Stage == stage)
                     {
-                        components[i].enabled = false;
-                        DestroyImmediate(components[i]);
+                        DestroyObject(components[i] as MonoBehaviour);
+                        components[i] = null;
                     }
                 }
             }
             InvalidateComponentPipeline();
-            return component;
+            return behaviour;
         }
 
         /// <summary>Remove a component from the cinemachine pipeline.</summary>
-        public void DestroyCinemachineComponent<T>() where T : CinemachineComponentBase
+        public void DestroyCinemachineComponent<T>() where T : MonoBehaviour
         {
-            CinemachineComponentBase[] components = GetComponentPipeline();
+            ICinemachineComponent[] components = GetComponentPipeline();
             if (components != null)
             {
                 foreach (var c in components)
                 {
                     if (c is T)
                     {
-                        c.enabled = false;
-                        DestroyImmediate(c);
+                        DestroyObject(c as MonoBehaviour);
                         InvalidateComponentPipeline();
                     }
                 }
@@ -343,20 +325,12 @@ namespace Cinemachine
         }
 
         /// <summary>API for the editor, to make the dragging of position handles behave better.</summary>
-        public bool UserIsDragging { get; set; }
+        public bool SuppressOrientationUpdate { get; set; }
 
-        /// <summary>API for the editor, to process a position drag from the user.</summary>
-        public void OnPositionDragged(Vector3 delta)
-        {
-            CinemachineComponentBase[] components = GetComponentPipeline();
-            if (components != null)
-                for (int i = 0; i < components.Length; ++i)
-                    components[i].OnPositionDragged(delta);
-        }
+        CameraState m_State = CameraState.Default;          // Current state this frame
+        CameraState m_PreviousState = CameraState.Default;  // State last frame, if simulating
 
-        CameraState m_State = CameraState.Default; // Current state this frame
-
-        CinemachineComponentBase[] m_ComponentPipeline = null;
+        ICinemachineComponent[] m_ComponentPipeline = null;
         [SerializeField][HideInInspector] private Transform m_ComponentOwner = null;   // serialized to handle copy/paste
         void UpdateComponentPipeline()
         {
@@ -365,8 +339,7 @@ namespace Cinemachine
             {
                 CinemachineVirtualCamera copyFrom = (m_ComponentOwner.parent != null)
                     ? m_ComponentOwner.parent.gameObject.GetComponent<CinemachineVirtualCamera>() : null;
-                DestroyPipeline();
-                m_ComponentOwner = CreatePipeline(copyFrom);
+                CreatePipeline(copyFrom);
             }
 
             // Early out if we're up-to-date
@@ -374,21 +347,22 @@ namespace Cinemachine
                 return;
 
             m_ComponentOwner = null;
-            List<CinemachineComponentBase> list = new List<CinemachineComponentBase>();
+            List<ICinemachineComponent> list = new List<ICinemachineComponent>();
             foreach (Transform child in transform)
             {
+                // skip virtual camera children
                 if (child.GetComponent<CinemachinePipeline>() != null)
                 {
                     m_ComponentOwner = child;
-                    CinemachineComponentBase[] components = child.GetComponents<CinemachineComponentBase>();
-                    foreach (CinemachineComponentBase c in components)
+                    ICinemachineComponent[] components = child.GetComponents<ICinemachineComponent>();
+                    foreach (ICinemachineComponent c in components)
                         list.Add(c);
                 }
             }
 
             // Make sure we have a pipeline owner
             if (m_ComponentOwner == null)
-                m_ComponentOwner = CreatePipeline(null);
+                CreatePipeline(null);
 
             // Make sure the pipeline stays hidden, even through prefab
             if (CinemachineCore.sShowHiddenObjects)
@@ -408,39 +382,47 @@ namespace Cinemachine
             // Initialize the camera state, in case the game object got moved in the editor
             CameraState state = PullStateFromVirtualCamera(worldUp);
 
+            // Pull state from the LookAt and Follow targets
+            if (Follow != null)
+                state.RawPosition = Follow.position;
             if (LookAt != null)
                 state.ReferenceLookAt = LookAt.position;
 
-            // Update the state by invoking the component pipeline
-            CinemachineCore.Stage curStage = CinemachineCore.Stage.Body;
-            UpdateComponentPipeline(); // avoid GetComponentPipeline() here because of GC
-            if (m_ComponentPipeline != null)
-            {
-                for (int i = 0; i < m_ComponentPipeline.Length; ++i)
-                    m_ComponentPipeline[i].PrePipelineMutateCameraState(ref state);
+            // The next stage hook to call
+            CinemachineCore.Stage stageHook = CinemachineCore.Stage.Lens;
 
-                for (int i = 0; i < m_ComponentPipeline.Length; ++i)
+            // Update the state by invoking the component pipeline
+            ICinemachineComponent[] components = GetComponentPipeline();
+            if (components != null)
+            {
+                foreach (ICinemachineComponent c in components)
                 {
-                    curStage = AdvancePipelineStage(
-                        ref state, deltaTime, curStage, (int)m_ComponentPipeline[i].Stage);
-                    m_ComponentPipeline[i].MutateCameraState(ref state, deltaTime);
+                    while ((int)stageHook < (int)c.Stage)
+                    {
+                        if (OnPostPipelineStage != null)
+                            OnPostPipelineStage(this, stageHook, ref state, m_PreviousState, deltaTime);
+                        ++stageHook;
+                        // Just before the Aim component is applied, we initialize
+                        // the orientation to look at the target
+                        if (stageHook == CinemachineCore.Stage.Aim)
+                            state = ApplyBaseLootAtToCameraState(state);
+                    }
+                    state = c.MutateCameraState(state, m_PreviousState, deltaTime);
                 }
             }
-            int numStages = 3; //Enum.GetValues(typeof(CinemachineCore.Stage)).Length;
-            AdvancePipelineStage(ref state, deltaTime, curStage, numStages);
-            return state;
-        }
-
-        private CinemachineCore.Stage AdvancePipelineStage(
-            ref CameraState state, float deltaTime,
-            CinemachineCore.Stage curStage, int maxStage)
-        {
-            while ((int)curStage < maxStage)
+            int numStages = Enum.GetValues(typeof(CinemachineCore.Stage)).Length;
+            while ((int)stageHook < numStages)
             {
-                InvokePostPipelineStageCallback(this, curStage, ref state, deltaTime);
-                ++curStage;
+                if (OnPostPipelineStage != null)
+                    OnPostPipelineStage(this, stageHook, ref state, m_PreviousState, deltaTime);
+                ++stageHook;
+                // Just before the Aim component is applied, we initialize
+                // the orientation to look at the target
+                if (stageHook == CinemachineCore.Stage.Aim)
+                    state = ApplyBaseLootAtToCameraState(state);
             }
-            return curStage;
+
+            return state;
         }
 
         private CameraState PullStateFromVirtualCamera(Vector3 worldUp)
@@ -458,7 +440,20 @@ namespace Cinemachine
             return state;
         }
 
-        // This is a hack for FreeLook rigs - to be removed
-        internal void SetStateRawPosition(Vector3 pos) { m_State.RawPosition = pos; }
+        private CameraState ApplyBaseLootAtToCameraState(CameraState state)
+        {
+            if (LookAt != null)
+            {
+                Vector3 dir = LookAt.position - state.CorrectedPosition;
+                if (!dir.AlmostZero())
+                {
+                    if (Vector3.Cross(dir.normalized, state.ReferenceUp).AlmostZero())
+                        state.RawOrientation = Quaternion.FromToRotation(Vector3.forward, dir);
+                    else
+                        state.RawOrientation = Quaternion.LookRotation(dir, state.ReferenceUp);
+                }
+            }
+            return state;
+        }
     }
 }
