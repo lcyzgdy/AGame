@@ -52,6 +52,10 @@
 			fixed4 frag (v2f i) : SV_Target
 			{
 				fixed b[9];
+				//for(int j = 0; j < 25; j++)
+				//{
+				//	b[j] = tex2D(_MainTex, i.uv[j]).x;
+				//}
 				b[0] = tex2D(_MainTex, i.uv[0]).x;
 				b[1] = tex2D(_MainTex, i.uv[1]).x;
 				b[2] = tex2D(_MainTex, i.uv[2]).x;
@@ -66,6 +70,12 @@
 							_Kernel[1][0] * b[3] + _Kernel[1][1] * b[4] + _Kernel[1][2] * b[5] +
 							_Kernel[2][0] * b[6] + _Kernel[2][1] * b[7] + _Kernel[2][2] * b[8];
 				fixed bin = step(9, sum);
+				//fixed sum = 0;
+				//for(int k = 0; k < 25; k++)
+				//{
+				//	sum += b[k] * _Kernel[k];
+				//}
+				//fixed bin = step(25, sum);
 				return fixed4(bin, bin, bin, 1);
 			}
 			ENDCG

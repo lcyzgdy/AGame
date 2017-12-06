@@ -11,13 +11,15 @@
 RWTexture2D<float4> Tex;
 Texture2D<float4> Image;
 RWTexture2D<float4> Edge;
-RWStructuredBuffer<int4> ConnectGraphic;
+RWStructuredBuffer<int> ConnectGraphic;
 
-RWStructuredBuffer<float4> TexBuffer;
+RWStructuredBuffer<float> TexBuffer;
+
+RWStructuredBuffer<int> DebugBuffer;
 
 inline int F(int2 xy)
 {
-	return int(xy.x * 256 + xy.y);
+	return int(xy.x * 128 + xy.y);
 }
 
 [numthreads(32, 32, 1)]
@@ -33,7 +35,7 @@ void Erode(uint3 id : SV_DispatchThreadID)
 			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
 			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
 	float bin = step(9, sum.x);
-	TexBuffer[F(xy)] = float4(bin, bin, bin, 1);
+	TexBuffer[F(xy)] = bin;
 }
 
 [numthreads(32, 32, 1)]
@@ -49,131 +51,134 @@ void Dilation(uint3 id : SV_DispatchThreadID)
 			   + TexBuffer[F(xy + int2(0, -1))] + TexBuffer[F(xy + int2(0, 0))] + TexBuffer[F(xy + int2(0, 1))]
 			   + TexBuffer[F(xy + int2(1, -1))] + TexBuffer[F(xy + int2(1, 0))] + TexBuffer[F(xy + int2(1, 1))];
 	float bin = step(1, sum.x);
-	TexBuffer[F(xy)] = float4(bin, bin, bin, 1);
+	TexBuffer[F(xy)] = bin;
 }
 
 [numthreads(32, 32, 1)]
 void Connect(uint3 id : SV_DispatchThreadID)
 {
-	int4 sum = Edge[id.xy + int2(-1, -1)] + Edge[id.xy + int2(-1, 0)] + Edge[id.xy + int2(-1, 1)]
-			 + Edge[id.xy + int2( 0, -1)] + Edge[id.xy + int2( 0, 0)] + Edge[id.xy + int2( 0, 1)]
-			 + Edge[id.xy + int2( 1, -1)] + Edge[id.xy + int2( 1, 0)] + Edge[id.xy + int2( 1, 1)];
+	int sum = Edge[id.xy + int2(-1, -1)].x + Edge[id.xy + int2(-1, 0)].x + Edge[id.xy + int2(-1, 1)].x
+			+ Edge[id.xy + int2( 0, -1)].x + Edge[id.xy + int2( 0, 0)].x + Edge[id.xy + int2( 0, 1)].x
+			+ Edge[id.xy + int2( 1, -1)].x + Edge[id.xy + int2( 1, 0)].x + Edge[id.xy + int2( 1, 1)].x;
 	ConnectGraphic[F(id.xy)] = sum;
 }
 
 [numthreads(32, 32, 1)]
 void Thin(uint3 id : SV_DispatchThreadID)
 {
-	while(true)
+	int erodeCount = 0;
+	if (Edge[id.xy].x >= 0.9)
 	{
-		if (Edge[id.xy].x == 1)
+		int count = 0;
+		for(int i = -1; i <= 1; i++)
 		{
-			int count;
-			for(int i = -1; i <= 1; i++)
+			for(int j = -1; j <= 1; j++)
 			{
-				for(int j = -1; j <= 1; j++)
-				{
-					if( i == j && j == 0) continue;
-					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 : 0;
-				}
-			}
-			if (count == 8)
-			{
-				Edge[id.xy] = float4(0, 0, 0, 0);
-				Tex[id.xy] = float4(0, 0, 0, 0);
+				if( i == j && j == 0) continue;
+				count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 : 0;
 			}
 		}
-		AllMemoryBarrierWithGroupSync();
-		if (Edge[id.xy].x == 1)
+		if (count >= 8)
 		{
-			int count;
-			for(int i = -1; i <= 1; i++)
-			{
-				for(int j = -1; j <= 1; j++)
-				{
-					if( i == j && j == 0) continue;
-					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 : 0) : 0;
-				}
-			}
-			if (count == 8)
-			{
-				Edge[id.xy] = float4(0, 0, 0, 0);
-				Tex[id.xy] = float4(0, 0, 0, 0);
-			}
+			Edge[id.xy] = float4(0, 0, 0, 0);
+			Tex[id.xy] = float4(0, 0, 0, 0);
+			erodeCount++;
 		}
-		AllMemoryBarrierWithGroupSync();
-		if (Edge[id.xy].x == 1)
-		{
-			int count;
-			for(int i = -1; i <= 1; i++)
-			{
-				for(int j = -1; j <= 1; j++)
-				{
-					if( i == j && j == 0) continue;
-					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 1 : 0) : 0) : 0;
-				}
-			}
-			if (count == 8)
-			{
-				Edge[id.xy] = float4(0, 0, 0, 0);
-				Tex[id.xy] = float4(0, 0, 0, 0);
-			}
-		}
-		AllMemoryBarrierWithGroupSync();
-		if (Edge[id.xy].x == 1)
-		{
-			int count;
-			for(int i = -1; i <= 1; i++)
-			{
-				for(int j = -1; j <= 1; j++)
-				{
-					if( i == j && j == 0) continue;
-					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 1 : 0) : 0) : 0) : 0;
-				}
-			}
-			if (count == 8)
-			{
-				Edge[id.xy] = float4(0, 0, 0, 0);
-				Tex[id.xy] = float4(0, 0, 0, 0);
-			}
-		}
-		AllMemoryBarrierWithGroupSync();
-		if (Edge[id.xy].x == 1)
-		{
-			int count;
-			for(int i = -1; i <= 1; i++)
-			{
-				for(int j = -1; j <= 1; j++)
-				{
-					if( i == j && j == 0) continue;
-					count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 
-							((ConnectGraphic[F(id.xy + int2(i, j))].x == 7)? 1 : 0) : 0) : 0) : 0) : 0;
-				}
-			}
-			if (count == 8)
-			{
-				Edge[id.xy] = float4(0, 0, 0, 0);
-				Tex[id.xy] = float4(0, 0, 0, 0);
-			}
-			else break;
-		}
-		AllMemoryBarrierWithGroupSync();
 	}
+	AllMemoryBarrierWithGroupSync();
+	if (Edge[id.xy].x >= 0.9)
+	{
+		int count = 0;
+		for(int i = -1; i <= 1; i++)
+		{
+			for(int j = -1; j <= 1; j++)
+			{
+				if( i == j && j == 0) continue;
+				count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 : 0);
+			}
+		}
+		if (count >= 8)
+		{
+			Edge[id.xy] = float4(0, 0, 0, 0);
+			Tex[id.xy] = float4(0, 0, 0, 0);
+			erodeCount++;
+		}
+	}
+	AllMemoryBarrierWithGroupSync();
+	if (Edge[id.xy].x >= 0.9)
+	{
+		int count = 0;
+		for(int i = -1; i <= 1; i++)
+		{
+			for(int j = -1; j <= 1; j++)
+			{
+				if( i == j && j == 0) continue;
+				count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 1 : 0));
+			}
+		}
+		if (count >= 8)
+		{
+			Edge[id.xy] = float4(0, 0, 0, 0);
+			Tex[id.xy] = float4(0, 0, 0, 0);
+			erodeCount++;
+		}
+	}
+	AllMemoryBarrierWithGroupSync();
+	if (Edge[id.xy].x >= 0.9)
+	{
+		int count = 0;
+		for(int i = -1; i <= 1; i++)
+		{
+			for(int j = -1; j <= 1; j++)
+			{
+				if( i == j && j == 0) continue;
+				count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 1 : 0)));
+			}
+		}
+		if (count >= 8)
+		{
+			Edge[id.xy] = float4(0, 0, 0, 0);
+			Tex[id.xy] = float4(0, 0, 0, 0);
+			erodeCount++;
+		}
+	}
+	AllMemoryBarrierWithGroupSync();
+	if (Edge[id.xy].x >= 0.9)
+	{
+		int count = 0;
+		for(int i = -1; i <= 1; i++)
+		{
+			for(int j = -1; j <= 1; j++)
+			{
+				if( i == j && j == 0) continue;
+				count += (ConnectGraphic[F(id.xy + int2(i, j))].x == 3)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 4)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 5)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 6)? 1 :
+						((ConnectGraphic[F(id.xy + int2(i, j))].x == 7)? 1 : 0))));
+			}
+		}
+		if (count >= 8)
+		{
+			Edge[id.xy] = float4(0, 0, 0, 0);
+			Tex[id.xy] = float4(0, 0, 0, 0);
+			erodeCount++;
+		}
+	}
+	AllMemoryBarrierWithGroupSync();
+	DebugBuffer[F(id.xy)] = erodeCount;
 }
 
 [numthreads(32, 32, 1)]
 void Tex2Buffer(uint3 id : SV_DispatchThreadID)
 {
-	TexBuffer[F(id.xy)] = Image[id.xy];
+	TexBuffer[F(id.xy)] = Image[id.xy].x;
 }
 
 [numthreads(32, 32, 1)]
