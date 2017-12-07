@@ -315,6 +315,7 @@ ExportedObj/
 
 *.pidb.meta
 
+*.resS
 
 
 # Unity3D Generated File On Crash Reports
