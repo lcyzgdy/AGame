@@ -1,4 +1,6 @@
-﻿using System.Collections;
+﻿using Microsoft.CSharp;
+using System.CodeDom.Compiler;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,7 +12,7 @@ public class CubeControl : MonoBehaviour
 	// Use this for initialization
 	void Start()
 	{
-
+		CSharpCodeProvider a = new CSharpCodeProvider();
 	}
 
 	// Update is called once per frame
