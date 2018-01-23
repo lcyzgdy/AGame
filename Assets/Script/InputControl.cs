@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using Vuforia;
+//using Vuforia;
 
 public class InputControl : MonoBehaviour
 {
@@ -11,9 +11,9 @@ public class InputControl : MonoBehaviour
 
 	void Start()
 	{
-		var vuforia = VuforiaARController.Instance;
-		vuforia.RegisterVuforiaStartedCallback(OnVuforiaStarted);
-		vuforia.RegisterOnPauseCallback(OnPaused);
+		//var vuforia = VuforiaARController.Instance;
+		//vuforia.RegisterVuforiaStartedCallback(OnVuforiaStarted);
+		//vuforia.RegisterOnPauseCallback(OnPaused);
 		seleteControl = false;
 		seletedObject = null;
 	}
@@ -38,7 +38,7 @@ public class InputControl : MonoBehaviour
 	}
 	private void OnVuforiaStarted()
 	{
-		CameraDevice.Instance.SetFocusMode(CameraDevice.FocusMode.FOCUS_MODE_CONTINUOUSAUTO);
+		//CameraDevice.Instance.SetFocusMode(CameraDevice.FocusMode.FOCUS_MODE_CONTINUOUSAUTO);
 	}
 
 	private void OnPaused(bool paused)
@@ -46,7 +46,7 @@ public class InputControl : MonoBehaviour
 		if (!paused) // resumed
 		{
 			// Set again autofocus mode when app is resumed
-			CameraDevice.Instance.SetFocusMode(CameraDevice.FocusMode.FOCUS_MODE_CONTINUOUSAUTO);
+			//CameraDevice.Instance.SetFocusMode(CameraDevice.FocusMode.FOCUS_MODE_CONTINUOUSAUTO);
 		}
 	}
 
